@@ -26,6 +26,7 @@ public class GraveController : MonoBehaviour
     public event Action<GraveController> OnStopped;
 
     public bool hasGraveSupporting = false;
+    [SerializeField] Transform judgePivot;
 
     void OnCollisionStay(Collision collision)
     {
@@ -101,32 +102,45 @@ public class GraveController : MonoBehaviour
     // 姿勢判定
     // =====================
     public GraveFaceResult GetResult()
+{
+    Vector3 worldUp = Vector3.up;
+
+    Vector3 up = judgePivot.up;
+    Vector3 right = judgePivot.right;
+    Vector3 forward = judgePivot.forward;
+
+    float dotUp = Vector3.Dot(up, worldUp);
+    float dotRight = Vector3.Dot(right, worldUp);
+    float dotForward = Vector3.Dot(forward, worldUp);
+
+    float absUp = Mathf.Abs(dotUp);
+    float absRight = Mathf.Abs(dotRight);
+    float absForward = Mathf.Abs(dotForward);
+
+    // =====================
+    // 縦面（立っている）
+    // =====================
+    if (absUp >= absRight && absUp >= absForward)
     {
-        Vector3 worldUp = Vector3.up;
-
-        float dotUp = Vector3.Dot(transform.up, worldUp);
-        float dotRight = Vector3.Dot(transform.right, worldUp);
-        float dotForward = Vector3.Dot(transform.forward, worldUp);
-
-        float absUp = Mathf.Abs(dotUp);
-        float absRight = Mathf.Abs(dotRight);
-        float absForward = Mathf.Abs(dotForward);
-
-        // 上下面
-        if (absUp > absRight && absUp > absForward)
-        {
-            return dotUp > 0
-                ? GraveFaceResult.Front
-                : GraveFaceResult.Back;
-        }
-
-        // Z面
-        if (absForward > absRight)
-            return GraveFaceResult.Side;
-
-        // X面
         return GraveFaceResult.Vertical;
     }
+
+    // =====================
+    // 表・裏
+    // =====================
+    if (absForward >= absRight)
+    {
+            return dotForward > 0f
+                ? GraveFaceResult.Back: 
+                GraveFaceResult.Front;
+        }
+
+        // =====================
+        // 横面
+        // =====================
+        return GraveFaceResult.Side;
+}
+
 
     // =====================
     // 外部から確認用（任意）

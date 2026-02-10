@@ -732,7 +732,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   playButton: {fileID: 404393986}
   dragArea: {fileID: 1891502833}
-  gravePrefab: {fileID: 2196458469816008018, guid: df9e40eb63c2da44bb14178bebdbafe6, type: 3}
+  gravePrefab: {fileID: 6123335325152109891, guid: abcf2c94e347fda4da05b6a386b58c9a, type: 3}
   graveCount: 4
   redMat: {fileID: 2100000, guid: 1354b8767aafeb94098903e2a7318306, type: 2}
   blueMat: {fileID: 2100000, guid: fadb2d3902d08f5499c62427a0c2705a, type: 2}
