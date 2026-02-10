@@ -16,10 +16,18 @@ public class DragAreaController : MonoBehaviour
     private float dragStartTime;
     private Vector3 launchWorldPos;
 
+    private bool hasDragged = false;
+
     public void SetDraggable(bool value)
     {
         draggable = value;
+
+        if (value)
+        {
+            hasDragged = false; // ★ ターン開始時にリセット
+        }
     }
+
 
     void Update()
     {
@@ -77,6 +85,8 @@ public class DragAreaController : MonoBehaviour
     // =====================
     void StartDrag(Vector2 screenPos)
     {
+        if (hasDragged) return; // ★ 2回目以降は無視
+
         dragging = true;
         dragStartScreen = screenPos;
         dragStartTime = Time.time;
@@ -84,10 +94,11 @@ public class DragAreaController : MonoBehaviour
         Ray ray = mainCamera.ScreenPointToRay(screenPos);
         if (Physics.Raycast(ray, out RaycastHit hit, 100f, boardLayer))
         {
-            launchWorldPos = hit.point; // ← Yは触らない
+            launchWorldPos = hit.point;
             Debug.Log($"▶ Drag Start / {launchWorldPos}");
         }
     }
+
 
 
     void EndDrag(Vector2 screenPos)
@@ -100,14 +111,15 @@ public class DragAreaController : MonoBehaviour
         if (dragVec.magnitude < 5f)
         {
             Debug.Log("▶ ドラッグ短すぎ → キャンセル");
-            return;
+            return; // ★ hasDragged を立てない
         }
+
+        // ★ ここまで来たら「有効なドラッグ」
+        hasDragged = true;
 
         Vector2 dir2D = dragVec.normalized;
         float distance = dragVec.magnitude;
         float speed = distance / Mathf.Max(dragTime, 0.01f);
-
-        Debug.Log($"▶ Drag End dir={dir2D} dist={distance} speed={speed}");
 
         gameManager.OnShakeRelease(
             launchWorldPos,
@@ -116,6 +128,7 @@ public class DragAreaController : MonoBehaviour
             speed
         );
     }
+
 
     // =====================
     // Utility

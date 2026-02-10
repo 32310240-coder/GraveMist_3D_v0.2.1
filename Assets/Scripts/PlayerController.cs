@@ -33,9 +33,8 @@ public class PlayerController : MonoBehaviour
     {
         rend = GetComponent<Renderer>();
         rend.material = Instantiate(whiteMat);
-
-        ApplyOutlineColor(); // ← ここで outline も含めて反映
     }
+
 
     // ★ GameManagerから必ず呼ぶ
     public void SetPlayerIndex(int index)
@@ -50,31 +49,42 @@ public class PlayerController : MonoBehaviour
         currentStage++;
         ApplyMaterial();
     }
+    float GetValueByStage(EvolutionStage stage)
+    {
+        switch (stage)
+        {
+            case EvolutionStage.White: return 1.0f;  // 100%
+            case EvolutionStage.Gray: return 0.5f;  // 50%
+            case EvolutionStage.Black: return 0.15f; // 15%
+        }
+        return 1.0f;
+    }
 
     // =====================
     // マテリアル適用（超重要）
     // =====================
     void ApplyMaterial()
     {
-        Material baseMat = null;
+        // ベースマテリアルは whiteMat を使い回す
+        rend.material = Instantiate(whiteMat);
 
-        switch (currentStage)
-        {
-            case EvolutionStage.White:
-                baseMat = whiteMat;
-                break;
-            case EvolutionStage.Gray:
-                baseMat = grayMat;
-                break;
-            case EvolutionStage.Black:
-                baseMat = blackMat;
-                break;
-        }
+        // ===== プレイヤーカラーを HSV で暗くする =====
+        Color baseColor = outlineColors[playerIndex];
 
-        // ★ 進化時も必ず複製
-        rend.material = Instantiate(baseMat);
+        Color.RGBToHSV(baseColor, out float h, out float s, out float v);
+
+        float newV = GetValueByStage(currentStage);
+        Color evolvedColor = Color.HSVToRGB(h, s, newV);
+
+        // Base Color（Standard / URP どちらでもだいたいこれ）
+        if (rend.material.HasProperty("_BaseColor"))
+            rend.material.SetColor("_BaseColor", evolvedColor);
+        else
+            rend.material.color = evolvedColor;
+
         ApplyOutlineColor();
     }
+
 
 
     void ApplyOutlineColor()

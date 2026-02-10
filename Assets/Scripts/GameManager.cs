@@ -76,10 +76,18 @@ public class GameManager : MonoBehaviour
 
         Vector2Int[] startGrids = new Vector2Int[]
         {
-            new Vector2Int(8, 0), // 1P
-            new Vector2Int(8, 8), // 2P
-            new Vector2Int(0, 8), // 3P
-            new Vector2Int(0, 0)  // 4P
+        new Vector2Int(8, 0), // 1P
+        new Vector2Int(8, 8), // 2P
+        new Vector2Int(0, 8), // 3P
+        new Vector2Int(0, 0)  // 4P
+        };
+
+        Color[] playerColors = new Color[]
+        {
+        Color.red,
+        Color.blue,
+        Color.yellow,
+        Color.green
         };
 
         for (int i = 0; i < startGrids.Length; i++)
@@ -87,18 +95,41 @@ public class GameManager : MonoBehaviour
             Vector3 pos = boardManager.GridToWorld(startGrids[i].x, startGrids[i].y);
             pos.y = 0.5f;
 
-            GameObject p = Instantiate(playerPrefab, pos, Quaternion.identity);
+            // ========= 向き計算 =========
+            Vector2Int current = startGrids[i];
+            Vector2Int next = startGrids[(i + 1) % startGrids.Length];
+            Vector2Int dir = next - current;
+
+            float yRot = 0f;
+
+            if (dir.x > 0) yRot = 90f;
+            else if (dir.x < 0) yRot = -90f;
+            else if (dir.y < 0) yRot = 180f;
+            else if (dir.y > 0) yRot = 0f;
+
+            Quaternion rot = Quaternion.Euler(90f, yRot, 0f);
+            // ============================
+
+            GameObject p = Instantiate(playerPrefab, pos, rot);
 
             PlayerController pc = p.GetComponent<PlayerController>();
             players.Add(p);
 
             int playerIndex = players.Count - 1;
-            p.GetComponent<PlayerController>().SetPlayerIndex(playerIndex);
+            pc.SetPlayerIndex(playerIndex);
+
+            // 色設定（例：Renderer が1つの場合）
+            Renderer r = p.GetComponentInChildren<Renderer>();
+            if (r != null)
+            {
+                r.material.color = playerColors[i];
+            }
 
             int pathIndex = boardManager.outerPath.IndexOf(startGrids[i]);
             playerPathIndices.Add(pathIndex);
         }
     }
+
 
     GameObject CurrentPlayer => players[currentPlayerIndex];
 
@@ -322,20 +353,43 @@ public class GameManager : MonoBehaviour
         int dir = steps >= 0 ? 1 : -1;
         int count = Mathf.Abs(steps);
 
+        Vector2Int? prevMoveDir = null;
+
         for (int i = 0; i < count; i++)
         {
+            int prevIndex = CurrentPathIndex;
+
             CurrentPathIndex =
                 (CurrentPathIndex + dir + boardManager.outerPath.Count)
                 % boardManager.outerPath.Count;
 
-            Vector2Int grid = boardManager.outerPath[CurrentPathIndex];
-            Vector3 pos = boardManager.GridToWorld(grid.x, grid.y);
+            Vector2Int prevGrid = boardManager.outerPath[prevIndex];
+            Vector2Int currGrid = boardManager.outerPath[CurrentPathIndex];
+            Vector2Int moveDir = currGrid - prevGrid;
+
+            // ===== 方向転換：通過でもOK =====
+            if (prevMoveDir.HasValue && moveDir != prevMoveDir.Value)
+            {
+                Transform t = CurrentPlayer.transform;
+
+                float turn = dir > 0 ? -90f : 90f;
+                t.rotation = Quaternion.Euler(
+                    t.rotation.eulerAngles.x,
+                    t.rotation.eulerAngles.y + turn,
+                    t.rotation.eulerAngles.z
+                );
+            }
+
+            prevMoveDir = moveDir;
+
+            Vector3 pos = boardManager.GridToWorld(currGrid.x, currGrid.y);
             pos.y = 0.5f;
 
             yield return MoveToPosition(CurrentPlayer.transform, pos, 0.15f);
             yield return new WaitForSeconds(0.05f);
         }
 
+        // ===== 進化判定：停止位置だけ見る =====
         if (IsCorner(boardManager.outerPath[CurrentPathIndex]))
         {
             CurrentPlayer.GetComponent<PlayerController>().AdvanceEvolution();
@@ -343,6 +397,7 @@ public class GameManager : MonoBehaviour
 
         NextTurn();
     }
+
 
     void NextTurn()
     {
