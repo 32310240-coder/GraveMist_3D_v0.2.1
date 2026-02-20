@@ -1,6 +1,7 @@
 ﻿using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
+using UnityEngine.SceneManagement;
 
 public class GameManager : MonoBehaviour
 {
@@ -17,44 +18,27 @@ public class GameManager : MonoBehaviour
     public Material blueMat;
     public Material yellowMat;
     public Material greenMat;
-    public Material purpleMat;
     public Material orangeMat;
 
     [Header("Board / Player")]
     public BoardManager boardManager;
     public GameObject playerPrefab;
 
-    // ★ 4人プレイヤー管理
     private List<GameObject> players = new List<GameObject>();
     private List<int> playerPathIndices = new List<int>();
-    private int currentPlayerIndex = 0;
+    private List<int> playerStartPathIndices = new List<int>();
 
+    private int currentPlayerIndex = 0;
     private Coroutine moveCoroutine;
 
     bool hasAnyFallen = false;
-    int fallenCount = 0;
-
-    int countRed = 0;
-    int countBlue = 0;
-    int countYellow = 0;
-    int countGreen = 0;
-
-    public enum GameState
-    {
-        Idle,
-        Shake
-    }
-
-    public GameState currentState = GameState.Idle;
-
-    // ===== 停止管理 =====
     int stoppedCount = 0;
     int totalSteps = 0;
     HashSet<GraveController> stoppedGraves = new HashSet<GraveController>();
 
-    // =====================
-    // Unity
-    // =====================
+    public enum GameState { Idle, Shake }
+    public GameState currentState = GameState.Idle;
+
     void Awake()
     {
         Physics.gravity = new Vector3(0, -20f, 0);
@@ -65,29 +49,26 @@ public class GameManager : MonoBehaviour
         CreatePlayers();
         EnterIdle();
     }
-
-    // =====================
+    void GoToWinScene(int winnerIndex)
+    {
+        GameResult.WinnerIndex = winnerIndex;
+        SceneManager.LoadScene("WinScene");
+    }
+    // =========================================================
     // Player生成
-    // =====================
+    // =========================================================
     void CreatePlayers()
     {
         players.Clear();
         playerPathIndices.Clear();
+        playerStartPathIndices.Clear();
 
         Vector2Int[] startGrids = new Vector2Int[]
         {
-        new Vector2Int(8, 0), // 1P
-        new Vector2Int(8, 8), // 2P
-        new Vector2Int(0, 8), // 3P
-        new Vector2Int(0, 0)  // 4P
-        };
-
-        Color[] playerColors = new Color[]
-        {
-        Color.red,
-        Color.blue,
-        Color.yellow,
-        Color.green
+            new Vector2Int(8, 0),
+            new Vector2Int(8, 8),
+            new Vector2Int(0, 8),
+            new Vector2Int(0, 0)
         };
 
         for (int i = 0; i < startGrids.Length; i++)
@@ -95,20 +76,17 @@ public class GameManager : MonoBehaviour
             Vector3 pos = boardManager.GridToWorld(startGrids[i].x, startGrids[i].y);
             pos.y = 0.5f;
 
-            // ========= 向き計算 =========
             Vector2Int current = startGrids[i];
             Vector2Int next = startGrids[(i + 1) % startGrids.Length];
             Vector2Int dir = next - current;
 
             float yRot = 0f;
-
             if (dir.x > 0) yRot = 90f;
             else if (dir.x < 0) yRot = -90f;
             else if (dir.y < 0) yRot = 180f;
             else if (dir.y > 0) yRot = 0f;
 
             Quaternion rot = Quaternion.Euler(90f, yRot, 0f);
-            // ============================
 
             GameObject p = Instantiate(playerPrefab, pos, rot);
 
@@ -118,18 +96,13 @@ public class GameManager : MonoBehaviour
             int playerIndex = players.Count - 1;
             pc.SetPlayerIndex(playerIndex);
 
-            // 色設定（例：Renderer が1つの場合）
-            Renderer r = p.GetComponentInChildren<Renderer>();
-            if (r != null)
-            {
-                r.material.color = playerColors[i];
-            }
-
             int pathIndex = boardManager.outerPath.IndexOf(startGrids[i]);
             playerPathIndices.Add(pathIndex);
+            playerStartPathIndices.Add(pathIndex);
         }
-    }
 
+        currentPlayerIndex = 0;
+    }
 
     GameObject CurrentPlayer => players[currentPlayerIndex];
 
@@ -139,9 +112,9 @@ public class GameManager : MonoBehaviour
         set => playerPathIndices[currentPlayerIndex] = value;
     }
 
-    // =====================
-    // UI
-    // =====================
+    // =========================================================
+    // UI制御
+    // =========================================================
     public void OnPlayButtonPressed()
     {
         if (currentState != GameState.Idle) return;
@@ -154,8 +127,7 @@ public class GameManager : MonoBehaviour
         playButton.SetActive(false);
         dragArea.SetActive(true);
         dragArea.GetComponent<DragAreaController>().SetDraggable(true);
-
-        Debug.Log($"▶ Player {currentPlayerIndex + 1} のターン");
+        Debug.Log($"▶{currentPlayerIndex + 1}P のターン");
     }
 
     void EnterIdle()
@@ -169,15 +141,10 @@ public class GameManager : MonoBehaviour
         dragArea.GetComponent<DragAreaController>().SetDraggable(false);
     }
 
-    // =====================
-    // Drag → Grave発射
-    // =====================
-    public void OnShakeRelease(
-        Vector3 launchPos,
-        Vector2 dir2D,
-        float dragDistance,
-        float speed
-    )
+    // =========================================================
+    // Drag → 発射
+    // =========================================================
+    public void OnShakeRelease(Vector3 launchPos, Vector2 dir2D, float dragDistance, float speed)
     {
         if (currentState != GameState.Shake) return;
 
@@ -189,44 +156,24 @@ public class GameManager : MonoBehaviour
         Vector3 launchDir = (dir3D + Vector3.up * 0.1f).normalized;
         float finalPower = 2.5f * power * speedFactor;
 
-        SpawnAndLaunchGraves(launchPos, launchDir, finalPower, dragDistance);
+        SpawnAndLaunchGraves(launchPos, launchDir, finalPower);
     }
 
-    // =====================
-    // Grave生成＆発射
-    // =====================
-    void SpawnAndLaunchGraves(
-        Vector3 launchPos,
-        Vector3 dir,
-        float power,
-        float dragDistance
-    )
+    void SpawnAndLaunchGraves(Vector3 launchPos, Vector3 dir, float power)
     {
         spawnedGraves.Clear();
-
         stoppedCount = 0;
         totalSteps = 0;
         stoppedGraves.Clear();
         hasAnyFallen = false;
-        fallenCount = 0;
-
-        countRed = countBlue = countYellow = countGreen = 0;
 
         float boardY = boardManager.transform.position.y;
         float halfHeight = gravePrefab.GetComponent<Collider>().bounds.extents.y;
         float spawnY = boardY + halfHeight + 4.5f;
 
-        float spread = Mathf.Clamp(dragDistance / 300f, 0.4f, 1.2f);
-
         for (int i = 0; i < graveCount; i++)
         {
-            Vector3 offset = new Vector3(
-                Random.Range(-spread, spread),
-                0f,
-                Random.Range(-spread, spread)
-            );
-
-            Vector3 spawnPos = launchPos + offset;
+            Vector3 spawnPos = launchPos;
             spawnPos.y = spawnY;
 
             GameObject grave = Instantiate(gravePrefab, spawnPos, Random.rotation);
@@ -239,40 +186,16 @@ public class GameManager : MonoBehaviour
             gc.OnStopped -= OnGraveStopped;
             gc.OnStopped += OnGraveStopped;
 
-            rb.AddForce(dir * power + Random.insideUnitSphere * 0.3f, ForceMode.Impulse);
+            rb.AddForce(dir * power, ForceMode.Impulse);
             rb.AddTorque(Random.insideUnitSphere * 4f, ForceMode.Impulse);
 
             spawnedGraves.Add(grave);
         }
     }
 
-    bool HasOverlappingGraves()
-    {
-        for (int i = 0; i < spawnedGraves.Count; i++)
-        {
-            var colA = spawnedGraves[i].GetComponent<Collider>();
-            if (!colA) continue;
-
-            for (int j = i + 1; j < spawnedGraves.Count; j++)
-            {
-                var colB = spawnedGraves[j].GetComponent<Collider>();
-                if (!colB) continue;
-
-                if (Physics.ComputePenetration(
-                    colA, colA.transform.position, colA.transform.rotation,
-                    colB, colB.transform.position, colB.transform.rotation,
-                    out _, out _))
-                {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    // =====================
-    // Grave停止 → 判定
-    // =====================
+    // =========================================================
+    // 駒停止処理
+    // =========================================================
     void OnGraveStopped(GraveController grave)
     {
         if (stoppedGraves.Contains(grave)) return;
@@ -281,33 +204,28 @@ public class GameManager : MonoBehaviour
         if (grave.IsOutOfBoard())
         {
             hasAnyFallen = true;
-            fallenCount++;
         }
         else
         {
-            GraveFaceResult result = grave.GetResult();
-            Renderer r = grave.GetComponent<Renderer>();
-
-            switch (result)
+            switch (grave.GetResult())
             {
                 case GraveFaceResult.Front:
-                    r.material = redMat;
+                    grave.GetComponent<Renderer>().material = redMat;
                     totalSteps += 1;
-                    countRed++;
                     break;
+
                 case GraveFaceResult.Back:
-                    r.material = blueMat;
-                    countBlue++;
+                    grave.GetComponent<Renderer>().material = blueMat;
                     break;
+
                 case GraveFaceResult.Side:
-                    r.material = yellowMat;
+                    grave.GetComponent<Renderer>().material = yellowMat;
                     totalSteps += 5;
-                    countYellow++;
                     break;
+
                 case GraveFaceResult.Vertical:
-                    r.material = greenMat;
+                    grave.GetComponent<Renderer>().material = greenMat;
                     totalSteps += 10;
-                    countGreen++;
                     break;
             }
         }
@@ -320,84 +238,78 @@ public class GameManager : MonoBehaviour
             foreach (var g in spawnedGraves)
                 if (g) g.GetComponent<Renderer>().material = orangeMat;
 
-            Debug.Log("❌ 落下あり → 移動なし");
             NextTurn();
             return;
         }
-
-        if (HasOverlappingGraves())
-        {
-            foreach (var g in spawnedGraves)
-                if (g) g.GetComponent<Renderer>().material = orangeMat;
-
-            Debug.Log("⚠ 重なりあり → 移動なし");
-            NextTurn();   // or EnterIdle();
-            return;
-        }
-
-        // 重なりなしの場合のみ進む
-        Debug.Log($"✅ {totalSteps} マス進む");
 
         if (moveCoroutine != null)
             StopCoroutine(moveCoroutine);
 
         moveCoroutine = StartCoroutine(MovePlayerCoroutine(totalSteps));
-
     }
 
-    // =====================
-    // Player移動
-    // =====================
+    // =========================================================
+    // 移動処理
+    // =========================================================
     IEnumerator MovePlayerCoroutine(int steps)
     {
         int dir = steps >= 0 ? 1 : -1;
         int count = Mathf.Abs(steps);
 
-        Vector2Int? prevMoveDir = null;
-
         for (int i = 0; i < count; i++)
         {
-            int prevIndex = CurrentPathIndex;
-
+            // 1) 次マスへ進める
             CurrentPathIndex =
                 (CurrentPathIndex + dir + boardManager.outerPath.Count)
                 % boardManager.outerPath.Count;
 
-            Vector2Int prevGrid = boardManager.outerPath[prevIndex];
-            Vector2Int currGrid = boardManager.outerPath[CurrentPathIndex];
-            Vector2Int moveDir = currGrid - prevGrid;
+            Vector2Int grid = boardManager.outerPath[CurrentPathIndex];
 
-            // ===== 方向転換：通過でもOK =====
-            if (prevMoveDir.HasValue && moveDir != prevMoveDir.Value)
-            {
-                Transform t = CurrentPlayer.transform;
-
-                float turn = dir > 0 ? -90f : 90f;
-                t.rotation = Quaternion.Euler(
-                    t.rotation.eulerAngles.x,
-                    t.rotation.eulerAngles.y + turn,
-                    t.rotation.eulerAngles.z
-                );
-            }
-
-            prevMoveDir = moveDir;
-
-            Vector3 pos = boardManager.GridToWorld(currGrid.x, currGrid.y);
+            // 2) 位置へ移動
+            Vector3 pos = boardManager.GridToWorld(grid.x, grid.y);
             pos.y = 0.5f;
-
             yield return MoveToPosition(CurrentPlayer.transform, pos, 0.15f);
             yield return new WaitForSeconds(0.05f);
+
+            // 3) ★到着後に角チェック → 角なら左90°回転して止まる
+            if (IsCorner(grid))
+            {
+                CurrentPlayer.transform.rotation =
+                    Quaternion.Euler(90f, RoundTo90(CurrentPlayer.transform.eulerAngles.y - 90f), 0f);
+            }
         }
 
-        // ===== 進化判定：停止位置だけ見る =====
-        if (IsCorner(boardManager.outerPath[CurrentPathIndex]))
+        // ---- 最終停止位置で「進化」と「勝利判定」はここでやる（到着後処理） ----
+        Vector2Int stopGrid = boardManager.outerPath[CurrentPathIndex];
+        var pc = CurrentPlayer.GetComponent<PlayerController>();
+
+        bool wasFinal = pc.IsFinalStage();
+
+        // ★進化は「最終停止位置が角」だけ
+        if (IsCorner(stopGrid))
+            pc.AdvanceEvolution();
+
+        bool isFinalNow = pc.IsFinalStage();
+        bool becameFinalHere = (!wasFinal && isFinalNow);
+
+        bool onMyStart = CurrentPathIndex == playerStartPathIndices[currentPlayerIndex];
+
+        if (isFinalNow && onMyStart && !becameFinalHere)
         {
-            CurrentPlayer.GetComponent<PlayerController>().AdvanceEvolution();
+            Debug.Log($"🏆 Player {currentPlayerIndex + 1} WIN!");
+            // ここで終了処理（必要なら gameEnded フラグ推奨）
+            GoToWinScene(currentPlayerIndex);
+            yield break;
         }
 
         NextTurn();
     }
 
+    float RoundTo90(float y)
+    {
+        y = Mathf.Repeat(y, 360f);
+        return Mathf.Round(y / 90f) * 90f;
+    }
 
     void NextTurn()
     {
@@ -409,18 +321,17 @@ public class GameManager : MonoBehaviour
     {
         Vector3 start = obj.position;
         float t = 0f;
+
         while (t < 1f)
         {
             t += Time.deltaTime / time;
             obj.position = Vector3.Lerp(start, target, t);
             yield return null;
         }
+
         obj.position = target;
     }
 
-    // =====================
-    // Utility
-    // =====================
     void ClearSpawnedGraves()
     {
         foreach (GameObject grave in spawnedGraves)

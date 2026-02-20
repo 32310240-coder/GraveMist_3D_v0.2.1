@@ -60,6 +60,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: -7511558181221131132, guid: a2c164a5c7145034b94191a0a86860ff, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 0546817feb448a9408037b769cff2757, type: 2}
     - target: {fileID: 919132149155446097, guid: a2c164a5c7145034b94191a0a86860ff, type: 3}
       propertyPath: m_Name
       value: Player
@@ -93,14 +97,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   playerIndex: 0
-  whiteMat: {fileID: 2100000, guid: 0546817feb448a9408037b769cff2757, type: 2}
-  grayMat: {fileID: 2100000, guid: 6025c2b63ed82ae409ad2310c42a836e, type: 2}
-  blackMat: {fileID: 2100000, guid: f2c929a80523e974485ac9f87dbacd76, type: 2}
-  outlineColors:
-  - {r: 1, g: 0, b: 0, a: 1}
-  - {r: 0, g: 0, b: 1, a: 1}
-  - {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
-  - {r: 0, g: 1, b: 0, a: 1}
+  baseMat: {fileID: 2100000, guid: 0546817feb448a9408037b769cff2757, type: 2}
 --- !u!64 &8450935859133978840
 MeshCollider:
   m_ObjectHideFlags: 0

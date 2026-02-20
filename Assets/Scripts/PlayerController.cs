@@ -9,16 +9,11 @@ public enum EvolutionStage
 
 public class PlayerController : MonoBehaviour
 {
-    [Header("Player Info")]
     [SerializeField] int playerIndex = -1;
 
-    [Header("Evolution Materials")]
-    public Material whiteMat;
-    public Material grayMat;
-    public Material blackMat;
+    public Material baseMat;
 
-    [Header("Outline Colors (0=1P,1=2P,2=3P,3=4P)")]
-    public Color[] outlineColors = new Color[4]
+    Color[] playerColors = new Color[]
     {
         Color.red,
         Color.blue,
@@ -32,15 +27,13 @@ public class PlayerController : MonoBehaviour
     void Awake()
     {
         rend = GetComponent<Renderer>();
-        rend.material = Instantiate(whiteMat);
+        rend.material = Instantiate(baseMat);
     }
 
-
-    // ★ GameManagerから必ず呼ぶ
     public void SetPlayerIndex(int index)
     {
         playerIndex = index;
-        ApplyOutlineColor();
+        ApplyMaterial(); // ★ 初期色もここで反映
     }
 
     public void AdvanceEvolution()
@@ -48,53 +41,42 @@ public class PlayerController : MonoBehaviour
         if (currentStage == EvolutionStage.Black) return;
         currentStage++;
         ApplyMaterial();
+
+        int stageNumber = (int)currentStage + 1;
+        Debug.Log($"{playerIndex + 1}P が第{stageNumber}段階に進化しました！");
     }
+
     float GetValueByStage(EvolutionStage stage)
     {
         switch (stage)
         {
-            case EvolutionStage.White: return 1.0f;  // 100%
-            case EvolutionStage.Gray: return 0.5f;  // 50%
-            case EvolutionStage.Black: return 0.15f; // 15%
+            case EvolutionStage.White: return 1.0f;
+            case EvolutionStage.Gray: return 0.5f;
+            case EvolutionStage.Black: return 0.15f;
         }
         return 1.0f;
     }
 
-    // =====================
-    // マテリアル適用（超重要）
-    // =====================
     void ApplyMaterial()
     {
-        // ベースマテリアルは whiteMat を使い回す
-        rend.material = Instantiate(whiteMat);
-
-        // ===== プレイヤーカラーを HSV で暗くする =====
-        Color baseColor = outlineColors[playerIndex];
-
-        Color.RGBToHSV(baseColor, out float h, out float s, out float v);
-
-        float newV = GetValueByStage(currentStage);
-        Color evolvedColor = Color.HSVToRGB(h, s, newV);
-
-        // Base Color（Standard / URP どちらでもだいたいこれ）
-        if (rend.material.HasProperty("_BaseColor"))
-            rend.material.SetColor("_BaseColor", evolvedColor);
-        else
-            rend.material.color = evolvedColor;
-
-        ApplyOutlineColor();
-    }
-
-
-
-    void ApplyOutlineColor()
-    {
-        if (playerIndex < 0 || playerIndex >= outlineColors.Length)
+        if (playerIndex < 0 || playerIndex >= playerColors.Length)
             return;
 
-        if (rend.material.HasProperty("_OutlineColor"))
-        {
-            rend.material.SetColor("_OutlineColor", outlineColors[playerIndex]);
-        }
+        Color baseColor = playerColors[playerIndex];
+
+        Color.RGBToHSV(baseColor, out float h, out float s, out float v);
+        float newV = GetValueByStage(currentStage);
+
+        Color finalColor = Color.HSVToRGB(h, s, newV);
+
+        if (rend.material.HasProperty("_BaseColor"))
+            rend.material.SetColor("_BaseColor", finalColor);
+        else
+            rend.material.color = finalColor;
+    }
+
+    public bool IsFinalStage()
+    {
+        return currentStage == EvolutionStage.Black;
     }
 }
