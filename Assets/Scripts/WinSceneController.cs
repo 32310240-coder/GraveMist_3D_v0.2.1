@@ -7,7 +7,7 @@ public class WinSceneController : MonoBehaviour
 
     void Start()
     {
-        int w = GameResult.WinnerIndex;
+        int w = GameSession.WinnerIndex;
         if (w < 0)
         {
             winnerText.text = "Winner: ?";

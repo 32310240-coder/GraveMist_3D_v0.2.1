@@ -51,7 +51,7 @@ public class GameManager : MonoBehaviour
     }
     void GoToWinScene(int winnerIndex)
     {
-        GameResult.WinnerIndex = winnerIndex;
+        GameSession.WinnerIndex = winnerIndex;
         SceneManager.LoadScene("WinScene");
     }
     // =========================================================
@@ -63,28 +63,44 @@ public class GameManager : MonoBehaviour
         playerPathIndices.Clear();
         playerStartPathIndices.Clear();
 
-        Vector2Int[] startGrids = new Vector2Int[]
+        Vector2Int[] allStartGrids = new Vector2Int[]
         {
-            new Vector2Int(8, 0),
-            new Vector2Int(8, 8),
-            new Vector2Int(0, 8),
-            new Vector2Int(0, 0)
+        new Vector2Int(8, 0), // 1P
+        new Vector2Int(8, 8), // 2P
+        new Vector2Int(0, 8), // 3P
+        new Vector2Int(0, 0)  // 4P
         };
 
-        for (int i = 0; i < startGrids.Length; i++)
+        int playerCount = Mathf.Clamp(GameSession.PlayerCount, 2, 4);
+
+        List<Vector2Int> startGrids = new List<Vector2Int>();
+
+        if (playerCount == 2)
         {
-            Vector3 pos = boardManager.GridToWorld(startGrids[i].x, startGrids[i].y);
+            // 1P(8,0) と 2P(0,8)
+            startGrids.Add(allStartGrids[0]);
+            startGrids.Add(allStartGrids[2]);
+        }
+        else
+        {
+            for (int i = 0; i < playerCount; i++)
+                startGrids.Add(allStartGrids[i]);
+        }
+
+        for (int i = 0; i < startGrids.Count; i++)
+        {
+            Vector2Int grid = startGrids[i];
+
+            Vector3 pos = boardManager.GridToWorld(grid.x, grid.y);
             pos.y = 0.5f;
 
-            Vector2Int current = startGrids[i];
-            Vector2Int next = startGrids[(i + 1) % startGrids.Length];
-            Vector2Int dir = next - current;
-
+            // ===== 角ごとの固定向き =====
             float yRot = 0f;
-            if (dir.x > 0) yRot = 90f;
-            else if (dir.x < 0) yRot = -90f;
-            else if (dir.y < 0) yRot = 180f;
-            else if (dir.y > 0) yRot = 0f;
+
+            if (grid == new Vector2Int(8, 0)) yRot = 0f;      // 上へ
+            else if (grid == new Vector2Int(8, 8)) yRot = -90f;    // 左へ
+            else if (grid == new Vector2Int(0, 8)) yRot = 180f;    // 下へ
+            else if (grid == new Vector2Int(0, 0)) yRot = 90f;     // 右へ
 
             Quaternion rot = Quaternion.Euler(90f, yRot, 0f);
 
@@ -96,7 +112,7 @@ public class GameManager : MonoBehaviour
             int playerIndex = players.Count - 1;
             pc.SetPlayerIndex(playerIndex);
 
-            int pathIndex = boardManager.outerPath.IndexOf(startGrids[i]);
+            int pathIndex = boardManager.outerPath.IndexOf(grid);
             playerPathIndices.Add(pathIndex);
             playerStartPathIndices.Add(pathIndex);
         }
