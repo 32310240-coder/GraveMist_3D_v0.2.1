@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using TMPro;
 
 public class GameManager : MonoBehaviour
 {
@@ -43,6 +44,7 @@ public class GameManager : MonoBehaviour
 
     public Sprite[] mistSprites;
 
+    public TMP_Text mistCounterText;
     private int currentPlayerIndex = 0;
     private Coroutine moveCoroutine;
 
@@ -66,6 +68,7 @@ public class GameManager : MonoBehaviour
         CreatePlayers();
         EnterTurnStart();
         RefreshMistMiniUI(currentPlayerIndex);
+        UpdateMistCounter(currentPlayerIndex);
     }
     void GoToWinScene(int winnerIndex)
     {
@@ -151,7 +154,7 @@ public class GameManager : MonoBehaviour
 
         Debug.Log($"Player {playerIndex + 1} got mist: {mist}");
         RefreshMistMiniUI(playerIndex);
-
+        UpdateMistCounter(playerIndex);
     }
 
     void ClearMistIcons()
@@ -253,6 +256,11 @@ public class GameManager : MonoBehaviour
             img.sprite = mistSprites[index];
         }
     }
+    void UpdateMistCounter(int playerIndex)
+    {
+        int current = playerMists[playerIndex].Count;
+        mistCounterText.text = current + "/" + MAX_MIST;
+    }
     void EnterTurnStart()
     {
         playButton.SetActive(true);
@@ -345,11 +353,14 @@ public class GameManager : MonoBehaviour
                 case GraveFaceResult.Side:
                     grave.GetComponent<Renderer>().material = yellowMat;
                     totalSteps += 5;
+                    GiveMist(currentPlayerIndex);
                     break;
 
                 case GraveFaceResult.Vertical:
                     grave.GetComponent<Renderer>().material = greenMat;
                     totalSteps += 10;
+                    GiveMist(currentPlayerIndex);
+                    GiveMist(currentPlayerIndex);
                     break;
             }
         }
@@ -440,6 +451,9 @@ public class GameManager : MonoBehaviour
     {
         ClearSpawnedGraves();
         currentPlayerIndex = (currentPlayerIndex + 1) % players.Count;
+
+        RefreshMistMiniUI(currentPlayerIndex);
+        UpdateMistCounter(currentPlayerIndex);
         EnterTurnStart();
     }
 
