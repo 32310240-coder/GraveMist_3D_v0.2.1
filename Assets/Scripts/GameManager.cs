@@ -2,12 +2,15 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 public class GameManager : MonoBehaviour
 {
     [Header("UI")]
     public GameObject playButton;
     public GameObject dragArea;
+    public GameObject turnButtons;   // トス / ミスト
+    public GameObject mistPanel;
 
     [Header("Grave")]
     public GameObject gravePrefab;
@@ -28,6 +31,14 @@ public class GameManager : MonoBehaviour
     private List<int> playerPathIndices = new List<int>();
     private List<int> playerStartPathIndices = new List<int>();
 
+    List<List<MistType>> playerMists = new List<List<MistType>>();
+    const int MAX_MIST = 7;
+
+    public Transform mistIconHolder;
+    public GameObject mistIconPrefab;
+
+    public Sprite[] mistSprites;
+
     private int currentPlayerIndex = 0;
     private Coroutine moveCoroutine;
 
@@ -39,6 +50,8 @@ public class GameManager : MonoBehaviour
     public enum GameState { Idle, Shake }
     public GameState currentState = GameState.Idle;
 
+
+
     void Awake()
     {
         Physics.gravity = new Vector3(0, -20f, 0);
@@ -47,7 +60,7 @@ public class GameManager : MonoBehaviour
     void Start()
     {
         CreatePlayers();
-        EnterIdle();
+        EnterTurnStart();
     }
     void GoToWinScene(int winnerIndex)
     {
@@ -62,6 +75,7 @@ public class GameManager : MonoBehaviour
         players.Clear();
         playerPathIndices.Clear();
         playerStartPathIndices.Clear();
+        playerMists.Clear();
 
         Vector2Int[] allStartGrids = new Vector2Int[]
         {
@@ -115,11 +129,47 @@ public class GameManager : MonoBehaviour
             int pathIndex = boardManager.outerPath.IndexOf(grid);
             playerPathIndices.Add(pathIndex);
             playerStartPathIndices.Add(pathIndex);
+            playerMists.Add(new List<MistType>());
         }
 
         currentPlayerIndex = 0;
     }
+    void GiveMist(int playerIndex)
+    {
+        if (playerMists[playerIndex].Count >= MAX_MIST)
+            return;
 
+        MistType mist = (MistType)Random.Range(1, 5);
+
+        playerMists[playerIndex].Add(mist);
+
+        Debug.Log($"Player {playerIndex + 1} got mist: {mist}");
+
+    }
+
+    void ClearMistIcons()
+    {
+        foreach (Transform child in mistIconHolder)
+        {
+            Destroy(child.gameObject);
+        }
+    }
+    void RefreshMistUI(int playerIndex)
+    {
+        ClearMistIcons();
+
+        List<MistType> mists = playerMists[playerIndex];
+
+        foreach (MistType mist in mists)
+        {
+            GameObject icon = Instantiate(mistIconPrefab, mistIconHolder);
+
+            Image img = icon.GetComponent<Image>();
+
+            int index = (int)mist - 1;
+            img.sprite = mistSprites[index];
+        }
+    }
     GameObject CurrentPlayer => players[currentPlayerIndex];
 
     int CurrentPathIndex
@@ -133,28 +183,50 @@ public class GameManager : MonoBehaviour
     // =========================================================
     public void OnPlayButtonPressed()
     {
-        if (currentState != GameState.Idle) return;
-        EnterShake();
+        playButton.SetActive(false);
+        turnButtons.SetActive(true);
     }
 
+    public void OnTossPressed()
+    {
+        turnButtons.SetActive(false);
+        EnterShake();
+    }
+    public void OnMistPressed()
+    {
+        bool active = mistPanel.activeSelf;
+
+        if (active)
+        {
+            mistPanel.SetActive(false);
+        }
+        else
+        {
+            mistPanel.SetActive(true);
+            RefreshMistUI(currentPlayerIndex);
+        }
+    }
     void EnterShake()
     {
         currentState = GameState.Shake;
-        playButton.SetActive(false);
+
+        turnButtons.SetActive(false);
         dragArea.SetActive(true);
+
         dragArea.GetComponent<DragAreaController>().SetDraggable(true);
+
         Debug.Log($"▶{currentPlayerIndex + 1}P のターン");
     }
 
-    void EnterIdle()
+    void EnterTurnStart()
     {
-        currentState = GameState.Idle;
-
-        ClearSpawnedGraves();
-
         playButton.SetActive(true);
+        turnButtons.SetActive(false);
         dragArea.SetActive(false);
+        mistPanel.SetActive(false);
+
         dragArea.GetComponent<DragAreaController>().SetDraggable(false);
+        currentState = GameState.Idle;
     }
 
     // =========================================================
@@ -177,7 +249,7 @@ public class GameManager : MonoBehaviour
 
     void SpawnAndLaunchGraves(Vector3 launchPos, Vector3 dir, float power)
     {
-        spawnedGraves.Clear();
+        ClearSpawnedGraves();
         stoppedCount = 0;
         totalSteps = 0;
         stoppedGraves.Clear();
@@ -292,6 +364,7 @@ public class GameManager : MonoBehaviour
             {
                 CurrentPlayer.transform.rotation =
                     Quaternion.Euler(90f, RoundTo90(CurrentPlayer.transform.eulerAngles.y - 90f), 0f);
+                GiveMist(currentPlayerIndex);
             }
         }
 
@@ -329,8 +402,9 @@ public class GameManager : MonoBehaviour
 
     void NextTurn()
     {
+        ClearSpawnedGraves();
         currentPlayerIndex = (currentPlayerIndex + 1) % players.Count;
-        EnterIdle();
+        EnterTurnStart();
     }
 
     IEnumerator MoveToPosition(Transform obj, Vector3 target, float time)
