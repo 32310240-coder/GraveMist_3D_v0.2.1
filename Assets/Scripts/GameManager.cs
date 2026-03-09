@@ -36,6 +36,8 @@ public class GameManager : MonoBehaviour
 
     public Transform mistIconHolder;
     public GameObject mistIconPrefab;
+    public Transform mistMiniHolder;
+    public GameObject mistMiniIconPrefab;
 
     public Sprite[] mistSprites;
 
@@ -144,6 +146,7 @@ public class GameManager : MonoBehaviour
         playerMists[playerIndex].Add(mist);
 
         Debug.Log($"Player {playerIndex + 1} got mist: {mist}");
+        RefreshMistMiniUI(playerIndex);
 
     }
 
@@ -217,7 +220,23 @@ public class GameManager : MonoBehaviour
 
         Debug.Log($"▶{currentPlayerIndex + 1}P のターン");
     }
+    void RefreshMistMiniUI(int playerIndex)
+    {
+        foreach (Transform child in mistMiniHolder)
+            Destroy(child.gameObject);
 
+        List<MistType> mists = playerMists[playerIndex];
+
+        foreach (MistType mist in mists)
+        {
+            GameObject icon = Instantiate(mistMiniIconPrefab, mistMiniHolder);
+
+            Image img = icon.GetComponent<Image>();
+
+            int index = (int)mist - 1;
+            img.sprite = mistSprites[index];
+        }
+    }
     void EnterTurnStart()
     {
         playButton.SetActive(true);
@@ -225,6 +244,7 @@ public class GameManager : MonoBehaviour
         dragArea.SetActive(false);
         mistPanel.SetActive(false);
 
+        RefreshMistMiniUI(currentPlayerIndex);
         dragArea.GetComponent<DragAreaController>().SetDraggable(false);
         currentState = GameState.Idle;
     }
