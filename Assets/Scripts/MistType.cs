@@ -6,5 +6,4 @@ public enum MistType
     Shield,
     Reverse,
     Teleport,
-    Double
 }

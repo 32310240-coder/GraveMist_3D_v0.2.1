@@ -33,6 +33,8 @@ public class GameManager : MonoBehaviour
 
     List<List<MistType>> playerMists = new List<List<MistType>>();
     const int MAX_MIST = 7;
+    const int START_MIST = 3;
+
 
     public Transform mistIconHolder;
     public GameObject mistIconPrefab;
@@ -63,6 +65,7 @@ public class GameManager : MonoBehaviour
     {
         CreatePlayers();
         EnterTurnStart();
+        RefreshMistMiniUI(currentPlayerIndex);
     }
     void GoToWinScene(int winnerIndex)
     {
@@ -135,13 +138,14 @@ public class GameManager : MonoBehaviour
         }
 
         currentPlayerIndex = 0;
+        GiveInitialMists();
     }
     void GiveMist(int playerIndex)
     {
         if (playerMists[playerIndex].Count >= MAX_MIST)
             return;
 
-        MistType mist = (MistType)Random.Range(1, 5);
+        MistType mist = (MistType)Random.Range(1, 6);
 
         playerMists[playerIndex].Add(mist);
 
@@ -171,6 +175,18 @@ public class GameManager : MonoBehaviour
 
             int index = (int)mist - 1;
             img.sprite = mistSprites[index];
+        }
+    }
+
+    void GiveInitialMists()
+    {
+        for (int i = 0; i < players.Count; i++)
+        {
+            for (int j = 0; j < START_MIST; j++)
+            {
+                MistType mist = (MistType)Random.Range(1, 6);
+                playerMists[i].Add(mist);
+            }
         }
     }
     GameObject CurrentPlayer => players[currentPlayerIndex];
