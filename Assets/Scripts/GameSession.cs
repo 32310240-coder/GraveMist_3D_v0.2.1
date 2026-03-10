@@ -6,6 +6,8 @@
     // ---- 結果（MainScene → WinScene）----
     public static int WinnerIndex = -1; // 0=1P, 1=2P...
 
+    public static int[] PlayerCharacters = new int[4];
+
     public static void ResetResult()
     {
         WinnerIndex = -1;
