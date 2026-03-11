@@ -1,71 +1,147 @@
 ﻿using UnityEngine;
 using UnityEngine.SceneManagement;
 using TMPro;
+using UnityEngine.UI;
 
 public class GameFlowController : MonoBehaviour
 {
     public TextMeshProUGUI winnerText;
 
-    // ===== 追加：キャラ選択画面用 =====
+    [Header("Character Select UI")]
     public GameObject settingsPanel;
     public GameObject settingsButton;
-    public GameObject[] playerSlots; // 上部の1P〜4P表示
+    public GameObject[] playerSlots;
 
-    public RectTransform characterBar;
-    public RectTransform[] characterIcons;
+    public Image characterPreviewImage;
+    public TextMeshProUGUI characterNameText;
+    public TextMeshProUGUI selectingPlayerText;
+
+    public Image[] playerSlotIcons;
+
+    [Header("Character Data")]
+    public Sprite[] characterSprites;     // 中央の大きい立ち絵
+    public Sprite[] characterIcons;       // 上部スロット用小アイコン
+    public string[] characterNames;
 
     public int currentCharacter = 0;
 
-    // ===== キャラプレビュー =====
-    public UnityEngine.UI.Image characterPreviewImage;
-    public TMPro.TextMeshProUGUI characterNameText;
-
-    public Sprite[] characterSprites;
-    public string[] characterNames;
-
-    int lastCharacter = -1;
-
-    public int selectingPlayer = 0;
+    int selectingPlayer = 0;
     int[] selectedCharacters = new int[4];
-    public TMPro.TextMeshProUGUI selectingPlayerText;
 
     void Start()
     {
-        // ===== WinScene用 =====
         if (winnerText != null)
         {
             int w = GameSession.WinnerIndex;
-
-            if (w < 0)
-                winnerText.text = "Winner: ?";
-            else
-                winnerText.text = $"{w + 1}P の勝利！";
+            winnerText.text = (w < 0) ? "Winner: ?" : $"{w + 1}P の勝利！";
         }
 
-        // ===== キャラ選択画面用 =====
         if (settingsPanel != null)
             settingsPanel.SetActive(false);
 
         UpdatePlayerSlots();
         UpdateSelectingPlayerUI();
+        UpdateCharacterPreview();
+        ResetPlayerSlotIcons();
     }
 
-    // =========================
-    // StartScene
-    // =========================
+    void ResetPlayerSlotIcons()
+    {
+        if (playerSlotIcons == null) return;
+
+        for (int i = 0; i < playerSlotIcons.Length; i++)
+        {
+            if (playerSlotIcons[i] != null)
+            {
+                playerSlotIcons[i].sprite = null;
+                playerSlotIcons[i].enabled = false;
+            }
+        }
+    }
+
+    public void SetCurrentCharacter(int index)
+    {
+        currentCharacter = index;
+        UpdateCharacterPreview();
+    }
+
+    void UpdateCharacterPreview()
+    {
+        if (characterPreviewImage != null &&
+            characterSprites != null &&
+            currentCharacter >= 0 &&
+            currentCharacter < characterSprites.Length)
+        {
+            characterPreviewImage.sprite = characterSprites[currentCharacter];
+        }
+
+        if (characterNameText != null &&
+            characterNames != null &&
+            currentCharacter >= 0 &&
+            currentCharacter < characterNames.Length)
+        {
+            characterNameText.text = characterNames[currentCharacter];
+        }
+    }
+
+    void UpdateSelectingPlayerUI()
+    {
+        if (selectingPlayerText != null)
+            selectingPlayerText.text = $"{selectingPlayer + 1}P キャラクター選択";
+    }
+
+    void UpdatePlayerSlots()
+    {
+        if (playerSlots == null) return;
+
+        for (int i = 0; i < playerSlots.Length; i++)
+        {
+            if (playerSlots[i] != null)
+                playerSlots[i].SetActive(i < GameSession.PlayerCount);
+        }
+    }
+
+    public void ConfirmCharacter()
+    {
+        if (selectingPlayer >= GameSession.PlayerCount) return;
+        if (currentCharacter < 0 || currentCharacter >= characterIcons.Length) return;
+
+        selectedCharacters[selectingPlayer] = currentCharacter;
+
+        if (playerSlotIcons != null &&
+            selectingPlayer < playerSlotIcons.Length &&
+            playerSlotIcons[selectingPlayer] != null)
+        {
+            playerSlotIcons[selectingPlayer].sprite = characterIcons[currentCharacter];
+            playerSlotIcons[selectingPlayer].enabled = true;
+        }
+
+        selectingPlayer++;
+
+        if (selectingPlayer >= GameSession.PlayerCount)
+        {
+            StartBattle();
+        }
+        else
+        {
+            UpdateSelectingPlayerUI();
+        }
+    }
+
+    void StartBattle()
+    {
+        GameSession.PlayerCharacters = selectedCharacters;
+        SceneManager.LoadScene("MainScene");
+    }
 
     public void StartGame()
     {
         SceneManager.LoadScene("ModeSelectScene");
     }
 
-    // =========================
-    // ModeSelectScene
-    // =========================
-
     public void SelectClassic()
     {
-        SceneManager.LoadScene("PlayerSelectScene");
+        SceneManager.LoadScene("CharacterSelectScene");
     }
 
     public void SelectBasic()
@@ -73,37 +149,21 @@ public class GameFlowController : MonoBehaviour
         Debug.Log("Basicモードは未実装");
     }
 
-    // =========================
-    // WinScene
-    // =========================
-
     public void BackToTitle()
     {
         SceneManager.LoadScene("StartScene");
     }
 
-    // =================================================
-    // ここから追加：キャラクター選択UI
-    // =================================================
-
     public void OpenSettings()
     {
-        if (settingsPanel == null) return;
-
-        settingsPanel.SetActive(true);
-
-        if (settingsButton != null)
-            settingsButton.SetActive(false);
+        if (settingsPanel != null) settingsPanel.SetActive(true);
+        if (settingsButton != null) settingsButton.SetActive(false);
     }
 
     public void CloseSettings()
     {
-        if (settingsPanel == null) return;
-
-        settingsPanel.SetActive(false);
-
-        if (settingsButton != null)
-            settingsButton.SetActive(true);
+        if (settingsPanel != null) settingsPanel.SetActive(false);
+        if (settingsButton != null) settingsButton.SetActive(true);
     }
 
     public void Set2Players()
@@ -126,84 +186,4 @@ public class GameFlowController : MonoBehaviour
         UpdatePlayerSlots();
         CloseSettings();
     }
-
-    void UpdatePlayerSlots()
-    {
-        if (playerSlots == null) return;
-
-        for (int i = 0; i < playerSlots.Length; i++)
-        {
-            if (playerSlots[i] != null)
-                playerSlots[i].SetActive(i < GameSession.PlayerCount);
-        }
-    }
-    void Update()
-    {
-        DetectCenterCharacter();
-        UpdateCharacterPreview();
-    }
-
-    void DetectCenterCharacter()
-    {
-        if (characterBar == null || characterIcons == null) return;
-
-        float closestDistance = Mathf.Infinity;
-        int closestIndex = 0;
-
-        float centerX = characterBar.position.x;
-
-        for (int i = 0; i < characterIcons.Length; i++)
-        {
-            float distance = Mathf.Abs(characterIcons[i].position.x - centerX);
-
-            if (distance < closestDistance)
-            {
-                closestDistance = distance;
-                closestIndex = i;
-            }
-        }
-
-        currentCharacter = closestIndex;
-    }
-    void UpdateCharacterPreview()
-    {
-        if (currentCharacter == lastCharacter) return;
-
-        lastCharacter = currentCharacter;
-
-        if (characterPreviewImage != null && characterSprites.Length > currentCharacter)
-            characterPreviewImage.sprite = characterSprites[currentCharacter];
-
-        if (characterNameText != null && characterNames.Length > currentCharacter)
-            characterNameText.text = characterNames[currentCharacter];
-    }
-    void UpdateSelectingPlayerUI()
-    {
-        if (selectingPlayerText != null)
-            selectingPlayerText.text = $"{selectingPlayer + 1}P キャラクター選択";
-    }
-    public void ConfirmCharacter()
-    {
-        selectedCharacters[selectingPlayer] = currentCharacter;
-
-        Debug.Log($"{selectingPlayer + 1}P キャラ決定: {currentCharacter}");
-
-        selectingPlayer++;
-
-        if (selectingPlayer >= GameSession.PlayerCount)
-        {
-            StartBattle();
-        }
-        else
-        {
-            UpdateSelectingPlayerUI();
-        }
-    }
-    void StartBattle()
-    {
-        GameSession.PlayerCharacters = selectedCharacters;
-
-        SceneManager.LoadScene("MainScene");
-    }
 }
-

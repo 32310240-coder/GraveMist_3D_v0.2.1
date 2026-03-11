@@ -845,12 +845,12 @@ MonoBehaviour:
   mistMiniHolder: {fileID: 2092933915}
   mistMiniIconPrefab: {fileID: 7799623168643096897, guid: fa5929d5e5b28f14d9ba4adf3c21c4e4, type: 3}
   mistSprites:
-  - {fileID: 21300000, guid: d29f7e9f6646a764183b915c53796cad, type: 3}
-  - {fileID: 21300000, guid: 71f59e729da56fa45b8067c1885d19c9, type: 3}
-  - {fileID: 21300000, guid: 6299f0f4d98814548993aabd4efa8b7d, type: 3}
-  - {fileID: 21300000, guid: eaddf86faee5a1847846033f58f0c34c, type: 3}
-  - {fileID: 21300000, guid: 2109ed91e11005746b33d663a248a228, type: 3}
-  - {fileID: 21300000, guid: 9f903dcf9fe552f47ae267815abbce61, type: 3}
+  - {fileID: 21300000, guid: 68d8115d673070e4f9562684955cb76d, type: 3}
+  - {fileID: 21300000, guid: a1a989e172b65634e8b7123c334dc7b7, type: 3}
+  - {fileID: 21300000, guid: 3d5b9e5a80ec53444818e11a7da6d60c, type: 3}
+  - {fileID: 21300000, guid: 03fca32c050a7d144a80ad9676b66dde, type: 3}
+  - {fileID: 21300000, guid: d9eb5804464993849a04b1489da41b41, type: 3}
+  - {fileID: 21300000, guid: 48ca5be4569d1294581de119c476f9ca, type: 3}
   mistCounterText: {fileID: 1171689202}
   currentState: 0
 --- !u!4 &961388618
@@ -2089,8 +2089,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 500, y: -70}
-  m_SizeDelta: {x: 300, y: 60}
+  m_AnchoredPosition: {x: 470, y: -70}
+  m_SizeDelta: {x: 300, y: 110}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &2092933916
 MonoBehaviour:
@@ -2110,8 +2110,8 @@ MonoBehaviour:
     m_Top: 0
     m_Bottom: 0
   m_ChildAlignment: 3
-  m_Spacing: 4
-  m_ChildForceExpandWidth: 1
+  m_Spacing: 0
+  m_ChildForceExpandWidth: 0
   m_ChildForceExpandHeight: 1
   m_ChildControlWidth: 0
   m_ChildControlHeight: 0
