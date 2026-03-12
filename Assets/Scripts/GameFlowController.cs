@@ -2,6 +2,7 @@
 using UnityEngine.SceneManagement;
 using TMPro;
 using UnityEngine.UI;
+using System.Collections;
 
 public class GameFlowController : MonoBehaviour
 {
@@ -23,10 +24,18 @@ public class GameFlowController : MonoBehaviour
     public Sprite[] characterIcons;       // 上部スロット用小アイコン
     public string[] characterNames;
 
+    [Header("Preview Animation")]
+    public float previewAnimDuration = 0.18f;
+    public float previewMinScale = 0.85f;
+    public float previewMaxScale = 1.08f;
+
     public int currentCharacter = 0;
 
     int selectingPlayer = 0;
     int[] selectedCharacters = new int[4];
+
+    Coroutine previewAnimCoroutine;
+    bool initializedPreview = false;
 
     void Start()
     {
@@ -41,7 +50,6 @@ public class GameFlowController : MonoBehaviour
 
         UpdatePlayerSlots();
         UpdateSelectingPlayerUI();
-        UpdateCharacterPreview();
         ResetPlayerSlotIcons();
     }
 
@@ -61,11 +69,13 @@ public class GameFlowController : MonoBehaviour
 
     public void SetCurrentCharacter(int index)
     {
-        currentCharacter = index;
-        UpdateCharacterPreview();
-    }
+        if (index < 0 || index >= characterSprites.Length) return;
+        if (index == currentCharacter && initializedPreview) return;
 
-    void UpdateCharacterPreview()
+        currentCharacter = index;
+        UpdateCharacterPreviewAnimated();
+    }
+    void UpdateCharacterPreviewImmediate()
     {
         if (characterPreviewImage != null &&
             characterSprites != null &&
@@ -73,6 +83,7 @@ public class GameFlowController : MonoBehaviour
             currentCharacter < characterSprites.Length)
         {
             characterPreviewImage.sprite = characterSprites[currentCharacter];
+            characterPreviewImage.rectTransform.localScale = Vector3.one;
         }
 
         if (characterNameText != null &&
@@ -82,7 +93,84 @@ public class GameFlowController : MonoBehaviour
         {
             characterNameText.text = characterNames[currentCharacter];
         }
+
+        initializedPreview = true;
     }
+    void UpdateCharacterPreviewAnimated()
+    {
+        if (characterNameText != null &&
+            characterNames != null &&
+            currentCharacter >= 0 &&
+            currentCharacter < characterNames.Length)
+        {
+            characterNameText.text = characterNames[currentCharacter];
+        }
+
+        if (characterPreviewImage == null ||
+            characterSprites == null ||
+            currentCharacter < 0 ||
+            currentCharacter >= characterSprites.Length)
+        {
+            return;
+        }
+
+        if (!initializedPreview || characterPreviewImage.sprite == null)
+        {
+            UpdateCharacterPreviewImmediate();
+            return;
+        }
+
+        if (previewAnimCoroutine != null)
+            StopCoroutine(previewAnimCoroutine);
+
+        previewAnimCoroutine = StartCoroutine(PlayPreviewChangeAnimation(characterSprites[currentCharacter]));
+    }
+    IEnumerator PlayPreviewChangeAnimation(Sprite nextSprite)
+    {
+        RectTransform rt = characterPreviewImage.rectTransform;
+
+        Vector3 startScale = rt.localScale;
+        Vector3 shrinkScale = Vector3.one * previewMinScale;
+        Vector3 overshootScale = Vector3.one * previewMaxScale;
+        Vector3 normalScale = Vector3.one;
+
+        float halfDuration = previewAnimDuration * 0.5f;
+        float elapsed = 0f;
+
+        // 1) 今の画像をズームアウト
+        while (elapsed < halfDuration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / halfDuration);
+            t = Mathf.SmoothStep(0f, 1f, t);
+
+            rt.localScale = Vector3.Lerp(startScale, shrinkScale, t);
+            yield return null;
+        }
+
+        rt.localScale = shrinkScale;
+
+        // 2) 画像切り替え
+        characterPreviewImage.sprite = nextSprite;
+
+        // 3) 少し大きめで表示してから通常サイズへ
+        elapsed = 0f;
+        rt.localScale = overshootScale;
+
+        while (elapsed < halfDuration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / halfDuration);
+            t = Mathf.SmoothStep(0f, 1f, t);
+
+            rt.localScale = Vector3.Lerp(overshootScale, normalScale, t);
+            yield return null;
+        }
+
+        rt.localScale = normalScale;
+        previewAnimCoroutine = null;
+    }
+ 
 
     void UpdateSelectingPlayerUI()
     {
