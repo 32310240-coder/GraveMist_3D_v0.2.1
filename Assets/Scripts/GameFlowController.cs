@@ -218,7 +218,12 @@ public class GameFlowController : MonoBehaviour
 
     void StartBattle()
     {
-        GameSession.PlayerCharacters = selectedCharacters;
+        for (int i = 0; i < GameSession.PlayerCount; i++)
+        {
+            Debug.Log($"[CharacterSelect] {i + 1}P selectedCharacters = {selectedCharacters[i]}");
+        }
+
+        GameSession.PlayerCharacters = (int[])selectedCharacters.Clone();
         SceneManager.LoadScene("MainScene");
     }
 

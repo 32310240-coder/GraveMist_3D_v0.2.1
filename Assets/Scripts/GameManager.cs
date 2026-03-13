@@ -5,19 +5,57 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using TMPro;
 
+[System.Serializable]
+public class EvolutionGaugeUI
+{
+    public Image[] gauges; // Gauge_1 ～ Gauge_3
+}
+
 public class GameManager : MonoBehaviour
 {
+    [Header("Current Player Panel")]
+    public GameObject currentPlayerPanel;
+    public CanvasGroup currentPlayerPanelCanvasGroup;
+    public Image currentPlayerImage;
+    public TextMeshProUGUI currentTurnText;
+    public TextMeshProUGUI currentPlayerNameText;
+    public EvolutionGaugeUI currentPlayerEvolutionGauge;
+
+    [Header("Current Player Panel Animation")]
+    public float currentPlayerFadeDuration = 0.25f;
+
+    [Header("Top Player Bar")]
+    public GameObject[] topPlayerRoots;         // PlayerInfo_1 ～ 4
+    public GameObject[] topPlayerHighlights;    // Highlight
+    public Image[] topPlayerNumberImages;       // PlayerNumber
+    public Image[] topPlayerIcons;              // Icon
+    public EvolutionGaugeUI[] topPlayerEvolutionGauges;
+
+    [Header("Player Number Sprites")]
+    public Sprite[] playerNumberSprites;        // 1P, 2P, 3P, 4P の画像
+
+    [Header("Character Data")]
+    public Sprite[] characterIcons;             // TopPlayerBar用
+    public Sprite[] characterLargeSprites;      // CurrentPlayerPanel用
+    public string[] characterNames;             // キャラ名
+
+    [Header("Evolution Gauge Sprites")]
+    public Sprite gaugeOnSprite;
+    public Sprite gaugeOffSprite;
+
     [Header("UI")]
-    public GameObject playButton;
     public GameObject dragArea;
-    public GameObject turnButtons;   // トス / ミスト
+    public GameObject turnButtons;   // Toss / Mist
     public GameObject mistPanel;
+
+    [Header("Mist Panel")]
+    public Transform mistIconHolder;
+    public GameObject mistIconPrefab;
+    public Sprite[] mistSprites;
 
     [Header("Grave")]
     public GameObject gravePrefab;
     public int graveCount = 4;
-    private List<GameObject> spawnedGraves = new List<GameObject>();
-
     public Material redMat;
     public Material blueMat;
     public Material yellowMat;
@@ -28,53 +66,186 @@ public class GameManager : MonoBehaviour
     public BoardManager boardManager;
     public GameObject playerPrefab;
 
-    private List<GameObject> players = new List<GameObject>();
-    private List<int> playerPathIndices = new List<int>();
-    private List<int> playerStartPathIndices = new List<int>();
+    private readonly List<GameObject> spawnedGraves = new List<GameObject>();
+    private readonly List<GameObject> players = new List<GameObject>();
+    private readonly List<int> playerPathIndices = new List<int>();
+    private readonly List<int> playerStartPathIndices = new List<int>();
+    private readonly List<List<MistType>> playerMists = new List<List<MistType>>();
 
-    List<List<MistType>> playerMists = new List<List<MistType>>();
-    const int MAX_MIST = 7;
-    const int START_MIST = 3;
+    private readonly int[] playerEvolutionLevels = new int[4];
 
+    private const int MAX_MIST = 7;
+    private const int START_MIST = 3;
 
-    public Transform mistIconHolder;
-    public GameObject mistIconPrefab;
-    public Transform mistMiniHolder;
-    public GameObject mistMiniIconPrefab;
-
-    public Sprite[] mistSprites;
-
-    public TMP_Text mistCounterText;
     private int currentPlayerIndex = 0;
     private Coroutine moveCoroutine;
 
-    bool hasAnyFallen = false;
-    int stoppedCount = 0;
-    int totalSteps = 0;
-    HashSet<GraveController> stoppedGraves = new HashSet<GraveController>();
+    private bool hasAnyFallen = false;
+    private int stoppedCount = 0;
+    private int totalSteps = 0;
+    private readonly HashSet<GraveController> stoppedGraves = new HashSet<GraveController>();
 
-    public enum GameState { Idle, Shake }
+    public enum GameState
+    {
+        Idle,
+        Shake
+    }
+
     public GameState currentState = GameState.Idle;
 
+    private GameObject CurrentPlayer => players[currentPlayerIndex];
 
+    private int CurrentPathIndex
+    {
+        get => playerPathIndices[currentPlayerIndex];
+        set => playerPathIndices[currentPlayerIndex] = value;
+    }
 
     void Awake()
     {
-        Physics.gravity = new Vector3(0, -20f, 0);
+        Physics.gravity = new Vector3(0f, -20f, 0f);
     }
 
     void Start()
     {
+        for (int i = 0; i < GameSession.PlayerCount; i++)
+        {
+            Debug.Log($"[MainScene] {i + 1}P GameSession.PlayerCharacters = {GameSession.PlayerCharacters[i]}");
+        }
+
+        ValidateGameSessionData();
+        InitializePlayerUI();
         CreatePlayers();
         EnterTurnStart();
-        RefreshMistMiniUI(currentPlayerIndex);
-        UpdateMistCounter(currentPlayerIndex);
+        RefreshAllPlayerUI();
+        ShowCurrentPlayerPanelImmediate();
     }
+
+    void ValidateGameSessionData()
+    {
+        GameSession.PlayerCount = Mathf.Clamp(GameSession.PlayerCount, 2, 4);
+
+        if (GameSession.PlayerCharacters == null || GameSession.PlayerCharacters.Length < 4)
+        {
+            GameSession.PlayerCharacters = new int[4];
+        }
+    }
+
+    void InitializePlayerUI()
+    {
+        for (int i = 0; i < playerEvolutionLevels.Length; i++)
+        {
+            playerEvolutionLevels[i] = 0;
+        }
+    }
+
+    void RefreshAllPlayerUI()
+    {
+        RefreshTopPlayerBar();
+        RefreshCurrentPlayerPanel();
+    }
+
+    void RefreshTopPlayerBar()
+    {
+        int playerCount = GameSession.PlayerCount;
+
+        for (int i = 0; i < topPlayerRoots.Length; i++)
+        {
+            bool active = i < playerCount;
+
+            if (topPlayerRoots[i] != null)
+                topPlayerRoots[i].SetActive(active);
+
+            if (!active) continue;
+
+            int charIndex = GameSession.PlayerCharacters[i];
+
+            if (topPlayerIcons != null &&
+                i < topPlayerIcons.Length &&
+                topPlayerIcons[i] != null &&
+                charIndex >= 0 &&
+                charIndex < characterIcons.Length)
+            {
+                topPlayerIcons[i].sprite = characterIcons[charIndex];
+            }
+
+            if (topPlayerHighlights != null &&
+                i < topPlayerHighlights.Length &&
+                topPlayerHighlights[i] != null)
+            {
+                topPlayerHighlights[i].SetActive(i == currentPlayerIndex);
+            }
+
+            if (topPlayerNumberImages != null &&
+                i < topPlayerNumberImages.Length &&
+                topPlayerNumberImages[i] != null &&
+                playerNumberSprites != null &&
+                i < playerNumberSprites.Length)
+            {
+                topPlayerNumberImages[i].sprite = playerNumberSprites[i];
+            }
+
+            if (topPlayerEvolutionGauges != null &&
+                i < topPlayerEvolutionGauges.Length)
+            {
+                RefreshEvolutionGauge(topPlayerEvolutionGauges[i], playerEvolutionLevels[i]);
+            }
+        }
+    }
+    void RefreshCurrentPlayerPanel()
+    {
+        int playerIndex = currentPlayerIndex;
+        int charIndex = GameSession.PlayerCharacters[playerIndex];
+
+        if (currentTurnText != null)
+            currentTurnText.text = $"{playerIndex + 1}P のターン";
+
+        if (currentPlayerNameText != null &&
+            charIndex >= 0 &&
+            charIndex < characterNames.Length)
+        {
+            currentPlayerNameText.text = characterNames[charIndex];
+        }
+
+        if (currentPlayerImage != null &&
+            charIndex >= 0 &&
+            charIndex < characterLargeSprites.Length)
+        {
+            currentPlayerImage.sprite = characterLargeSprites[charIndex];
+        }
+
+        RefreshEvolutionGauge(currentPlayerEvolutionGauge, playerEvolutionLevels[playerIndex]);
+    }
+
+    void RefreshEvolutionGauge(EvolutionGaugeUI gaugeUI, int level)
+    {
+        if (gaugeUI == null || gaugeUI.gauges == null) return;
+
+        level = Mathf.Clamp(level, 0, 3);
+
+        for (int i = 0; i < gaugeUI.gauges.Length; i++)
+        {
+            if (gaugeUI.gauges[i] == null) continue;
+
+            bool isOn = i < level;
+
+            if (gaugeOnSprite != null && gaugeOffSprite != null)
+            {
+                gaugeUI.gauges[i].sprite = isOn ? gaugeOnSprite : gaugeOffSprite;
+            }
+            else
+            {
+                gaugeUI.gauges[i].color = isOn ? Color.white : Color.gray;
+            }
+        }
+    }
+
     void GoToWinScene(int winnerIndex)
     {
         GameSession.WinnerIndex = winnerIndex;
         SceneManager.LoadScene("WinScene");
     }
+
     // =========================================================
     // Player生成
     // =========================================================
@@ -87,19 +258,17 @@ public class GameManager : MonoBehaviour
 
         Vector2Int[] allStartGrids = new Vector2Int[]
         {
-        new Vector2Int(8, 0), // 1P
-        new Vector2Int(8, 8), // 2P
-        new Vector2Int(0, 8), // 3P
-        new Vector2Int(0, 0)  // 4P
+            new Vector2Int(8, 0), // 1P
+            new Vector2Int(8, 8), // 2P
+            new Vector2Int(0, 8), // 3P
+            new Vector2Int(0, 0)  // 4P
         };
 
         int playerCount = Mathf.Clamp(GameSession.PlayerCount, 2, 4);
-
         List<Vector2Int> startGrids = new List<Vector2Int>();
 
         if (playerCount == 2)
         {
-            // 1P(8,0) と 2P(0,8)
             startGrids.Add(allStartGrids[0]);
             startGrids.Add(allStartGrids[2]);
         }
@@ -116,13 +285,12 @@ public class GameManager : MonoBehaviour
             Vector3 pos = boardManager.GridToWorld(grid.x, grid.y);
             pos.y = 0.5f;
 
-            // ===== 角ごとの固定向き =====
             float yRot = 0f;
 
-            if (grid == new Vector2Int(8, 0)) yRot = 0f;      // 上へ
-            else if (grid == new Vector2Int(8, 8)) yRot = -90f;    // 左へ
-            else if (grid == new Vector2Int(0, 8)) yRot = 180f;    // 下へ
-            else if (grid == new Vector2Int(0, 0)) yRot = 90f;     // 右へ
+            if (grid == new Vector2Int(8, 0)) yRot = 0f;
+            else if (grid == new Vector2Int(8, 8)) yRot = -90f;
+            else if (grid == new Vector2Int(0, 8)) yRot = 180f;
+            else if (grid == new Vector2Int(0, 0)) yRot = 90f;
 
             Quaternion rot = Quaternion.Euler(90f, yRot, 0f);
 
@@ -143,43 +311,6 @@ public class GameManager : MonoBehaviour
         currentPlayerIndex = 0;
         GiveInitialMists();
     }
-    void GiveMist(int playerIndex)
-    {
-        if (playerMists[playerIndex].Count >= MAX_MIST)
-            return;
-
-        MistType mist = (MistType)Random.Range(1, 6);
-
-        playerMists[playerIndex].Add(mist);
-
-        Debug.Log($"Player {playerIndex + 1} got mist: {mist}");
-        RefreshMistMiniUI(playerIndex);
-        UpdateMistCounter(playerIndex);
-    }
-
-    void ClearMistIcons()
-    {
-        foreach (Transform child in mistIconHolder)
-        {
-            Destroy(child.gameObject);
-        }
-    }
-    void RefreshMistUI(int playerIndex)
-    {
-        ClearMistIcons();
-
-        List<MistType> mists = playerMists[playerIndex];
-
-        foreach (MistType mist in mists)
-        {
-            GameObject icon = Instantiate(mistIconPrefab, mistIconHolder);
-
-            Image img = icon.GetComponent<Image>();
-
-            int index = (int)mist - 1;
-            img.sprite = mistSprites[index];
-        }
-    }
 
     void GiveInitialMists()
     {
@@ -192,30 +323,73 @@ public class GameManager : MonoBehaviour
             }
         }
     }
-    GameObject CurrentPlayer => players[currentPlayerIndex];
 
-    int CurrentPathIndex
+    void GiveMist(int playerIndex)
     {
-        get => playerPathIndices[currentPlayerIndex];
-        set => playerPathIndices[currentPlayerIndex] = value;
+        if (playerIndex < 0 || playerIndex >= playerMists.Count) return;
+        if (playerMists[playerIndex].Count >= MAX_MIST) return;
+
+        MistType mist = (MistType)Random.Range(1, 6);
+        playerMists[playerIndex].Add(mist);
+
+        Debug.Log($"Player {playerIndex + 1} got mist: {mist}");
+
+        if (mistPanel.activeSelf && playerIndex == currentPlayerIndex)
+        {
+            RefreshMistPanelUI(playerIndex);
+        }
+    }
+
+    // =========================================================
+    // Mist Panel
+    // =========================================================
+    void ClearMistIcons()
+    {
+        if (mistIconHolder == null) return;
+
+        foreach (Transform child in mistIconHolder)
+        {
+            Destroy(child.gameObject);
+        }
+    }
+
+    void RefreshMistPanelUI(int playerIndex)
+    {
+        if (mistIconHolder == null || mistIconPrefab == null || mistSprites == null) return;
+        if (playerIndex < 0 || playerIndex >= playerMists.Count) return;
+
+        ClearMistIcons();
+
+        List<MistType> mists = playerMists[playerIndex];
+
+        foreach (MistType mist in mists)
+        {
+            GameObject icon = Instantiate(mistIconPrefab, mistIconHolder);
+            Image img = icon.GetComponent<Image>();
+
+            int index = (int)mist - 1;
+            if (index >= 0 && index < mistSprites.Length)
+            {
+                img.sprite = mistSprites[index];
+            }
+        }
     }
 
     // =========================================================
     // UI制御
     // =========================================================
-    public void OnPlayButtonPressed()
-    {
-        playButton.SetActive(false);
-        turnButtons.SetActive(true);
-    }
-
     public void OnTossPressed()
     {
-        turnButtons.SetActive(false);
+        if (turnButtons != null) turnButtons.SetActive(false);
+
+        FadeCurrentPlayerPanel(false);
         EnterShake();
     }
+
     public void OnMistPressed()
     {
+        if (mistPanel == null) return;
+
         bool active = mistPanel.activeSelf;
 
         if (active)
@@ -225,52 +399,41 @@ public class GameManager : MonoBehaviour
         else
         {
             mistPanel.SetActive(true);
-            RefreshMistUI(currentPlayerIndex);
+            RefreshMistPanelUI(currentPlayerIndex);
         }
     }
+
+    void EnterTurnStart()
+    {
+        if (turnButtons != null) turnButtons.SetActive(true);
+        if (dragArea != null) dragArea.SetActive(false);
+        if (mistPanel != null) mistPanel.SetActive(false);
+
+        DragAreaController dragController = dragArea != null
+            ? dragArea.GetComponent<DragAreaController>()
+            : null;
+
+        if (dragController != null)
+            dragController.SetDraggable(false);
+
+        currentState = GameState.Idle;
+    }
+
     void EnterShake()
     {
         currentState = GameState.Shake;
 
-        turnButtons.SetActive(false);
-        dragArea.SetActive(true);
+        if (turnButtons != null) turnButtons.SetActive(false);
+        if (dragArea != null) dragArea.SetActive(true);
 
-        dragArea.GetComponent<DragAreaController>().SetDraggable(true);
+        DragAreaController dragController = dragArea != null
+            ? dragArea.GetComponent<DragAreaController>()
+            : null;
 
-        Debug.Log($"▶{currentPlayerIndex + 1}P のターン");
-    }
-    void RefreshMistMiniUI(int playerIndex)
-    {
-        foreach (Transform child in mistMiniHolder)
-            Destroy(child.gameObject);
+        if (dragController != null)
+            dragController.SetDraggable(true);
 
-        List<MistType> mists = playerMists[playerIndex];
-
-        foreach (MistType mist in mists)
-        {
-            GameObject icon = Instantiate(mistMiniIconPrefab, mistMiniHolder);
-
-            Image img = icon.GetComponent<Image>();
-
-            int index = (int)mist - 1;
-            img.sprite = mistSprites[index];
-        }
-    }
-    void UpdateMistCounter(int playerIndex)
-    {
-        int current = playerMists[playerIndex].Count;
-        mistCounterText.text = current + "/" + MAX_MIST;
-    }
-    void EnterTurnStart()
-    {
-        playButton.SetActive(true);
-        turnButtons.SetActive(false);
-        dragArea.SetActive(false);
-        mistPanel.SetActive(false);
-
-        RefreshMistMiniUI(currentPlayerIndex);
-        dragArea.GetComponent<DragAreaController>().SetDraggable(false);
-        currentState = GameState.Idle;
+        Debug.Log($"▶ {currentPlayerIndex + 1}P のターン");
     }
 
     // =========================================================
@@ -294,6 +457,7 @@ public class GameManager : MonoBehaviour
     void SpawnAndLaunchGraves(Vector3 launchPos, Vector3 dir, float power)
     {
         ClearSpawnedGraves();
+
         stoppedCount = 0;
         totalSteps = 0;
         stoppedGraves.Clear();
@@ -326,7 +490,7 @@ public class GameManager : MonoBehaviour
     }
 
     // =========================================================
-    // 駒停止処理
+    // 墓停止処理
     // =========================================================
     void OnGraveStopped(GraveController grave)
     {
@@ -370,8 +534,11 @@ public class GameManager : MonoBehaviour
 
         if (hasAnyFallen)
         {
-            foreach (var g in spawnedGraves)
-                if (g) g.GetComponent<Renderer>().material = orangeMat;
+            foreach (GameObject g in spawnedGraves)
+            {
+                if (g != null)
+                    g.GetComponent<Renderer>().material = orangeMat;
+            }
 
             NextTurn();
             return;
@@ -393,47 +560,46 @@ public class GameManager : MonoBehaviour
 
         for (int i = 0; i < count; i++)
         {
-            // 1) 次マスへ進める
             CurrentPathIndex =
                 (CurrentPathIndex + dir + boardManager.outerPath.Count)
                 % boardManager.outerPath.Count;
 
             Vector2Int grid = boardManager.outerPath[CurrentPathIndex];
 
-            // 2) 位置へ移動
             Vector3 pos = boardManager.GridToWorld(grid.x, grid.y);
             pos.y = 0.5f;
+
             yield return MoveToPosition(CurrentPlayer.transform, pos, 0.15f);
             yield return new WaitForSeconds(0.05f);
 
-            // 3) ★到着後に角チェック → 角なら左90°回転して止まる
             if (IsCorner(grid))
             {
                 CurrentPlayer.transform.rotation =
-                    Quaternion.Euler(90f, RoundTo90(CurrentPlayer.transform.eulerAngles.y - 90f), 0f);
+                    Quaternion.Euler(
+                        90f,
+                        RoundTo90(CurrentPlayer.transform.eulerAngles.y - 90f),
+                        0f
+                    );
+
                 GiveMist(currentPlayerIndex);
             }
         }
 
-        // ---- 最終停止位置で「進化」と「勝利判定」はここでやる（到着後処理） ----
         Vector2Int stopGrid = boardManager.outerPath[CurrentPathIndex];
-        var pc = CurrentPlayer.GetComponent<PlayerController>();
+        PlayerController pc = CurrentPlayer.GetComponent<PlayerController>();
 
         bool wasFinal = pc.IsFinalStage();
 
-        // ★進化は「最終停止位置が角」だけ
         if (IsCorner(stopGrid))
             pc.AdvanceEvolution();
 
         bool isFinalNow = pc.IsFinalStage();
         bool becameFinalHere = (!wasFinal && isFinalNow);
-
         bool onMyStart = CurrentPathIndex == playerStartPathIndices[currentPlayerIndex];
 
         if (isFinalNow && onMyStart && !becameFinalHere)
         {
             Debug.Log($"🏆 Player {currentPlayerIndex + 1} WIN!");
-            // ここで終了処理（必要なら gameEnded フラグ推奨）
             GoToWinScene(currentPlayerIndex);
             yield break;
         }
@@ -450,11 +616,12 @@ public class GameManager : MonoBehaviour
     void NextTurn()
     {
         ClearSpawnedGraves();
+
         currentPlayerIndex = (currentPlayerIndex + 1) % players.Count;
 
-        RefreshMistMiniUI(currentPlayerIndex);
-        UpdateMistCounter(currentPlayerIndex);
         EnterTurnStart();
+        RefreshAllPlayerUI();
+        FadeCurrentPlayerPanel(true);
     }
 
     IEnumerator MoveToPosition(Transform obj, Vector3 target, float time)
@@ -475,7 +642,10 @@ public class GameManager : MonoBehaviour
     void ClearSpawnedGraves()
     {
         foreach (GameObject grave in spawnedGraves)
-            if (grave) Destroy(grave);
+        {
+            if (grave != null)
+                Destroy(grave);
+        }
 
         spawnedGraves.Clear();
     }
@@ -483,7 +653,114 @@ public class GameManager : MonoBehaviour
     bool IsCorner(Vector2Int grid)
     {
         int max = boardManager.gridSize - 1;
-        return (grid.x == 0 || grid.x == max)
-            && (grid.y == 0 || grid.y == max);
+        return (grid.x == 0 || grid.x == max) &&
+               (grid.y == 0 || grid.y == max);
+    }
+
+    public void SetEvolutionLevel(int playerIndex, int level)
+    {
+        if (playerIndex < 0 || playerIndex >= playerEvolutionLevels.Length) return;
+
+        playerEvolutionLevels[playerIndex] = Mathf.Clamp(level, 0, 3);
+        RefreshAllPlayerUI();
+    }
+
+    public void AddEvolutionLevel(int playerIndex, int amount)
+    {
+        if (playerIndex < 0 || playerIndex >= playerEvolutionLevels.Length) return;
+
+        playerEvolutionLevels[playerIndex] += amount;
+        playerEvolutionLevels[playerIndex] = Mathf.Clamp(playerEvolutionLevels[playerIndex], 0, 3);
+        RefreshAllPlayerUI();
+    }
+
+    public int GetCurrentPlayerIndex()
+    {
+        return currentPlayerIndex;
+    }
+
+    public int GetPlayerEvolutionLevel(int playerIndex)
+    {
+        if (playerIndex < 0 || playerIndex >= playerEvolutionLevels.Length) return 0;
+        return playerEvolutionLevels[playerIndex];
+    }
+
+    public int GetPlayerMistCount(int playerIndex)
+    {
+        if (playerIndex < 0 || playerIndex >= playerMists.Count) return 0;
+        return playerMists[playerIndex].Count;
+    }
+
+    Coroutine currentPlayerPanelFadeCoroutine;
+
+    void ShowCurrentPlayerPanelImmediate()
+    {
+        if (currentPlayerPanel != null)
+            currentPlayerPanel.SetActive(true);
+
+        if (currentPlayerPanelCanvasGroup != null)
+        {
+            currentPlayerPanelCanvasGroup.alpha = 1f;
+            currentPlayerPanelCanvasGroup.interactable = true;
+            currentPlayerPanelCanvasGroup.blocksRaycasts = true;
+        }
+    }
+
+    void HideCurrentPlayerPanelImmediate()
+    {
+        if (currentPlayerPanelCanvasGroup != null)
+        {
+            currentPlayerPanelCanvasGroup.alpha = 0f;
+            currentPlayerPanelCanvasGroup.interactable = false;
+            currentPlayerPanelCanvasGroup.blocksRaycasts = false;
+        }
+
+        if (currentPlayerPanel != null)
+            currentPlayerPanel.SetActive(false);
+    }
+
+    void FadeCurrentPlayerPanel(bool fadeIn)
+    {
+        if (currentPlayerPanelCanvasGroup == null)
+        {
+            if (currentPlayerPanel != null)
+                currentPlayerPanel.SetActive(fadeIn);
+            return;
+        }
+
+        if (currentPlayerPanelFadeCoroutine != null)
+            StopCoroutine(currentPlayerPanelFadeCoroutine);
+
+        currentPlayerPanelFadeCoroutine = StartCoroutine(FadeCurrentPlayerPanelCoroutine(fadeIn));
+    }
+
+    IEnumerator FadeCurrentPlayerPanelCoroutine(bool fadeIn)
+    {
+        if (currentPlayerPanel != null && fadeIn)
+            currentPlayerPanel.SetActive(true);
+
+        float startAlpha = currentPlayerPanelCanvasGroup.alpha;
+        float targetAlpha = fadeIn ? 1f : 0f;
+
+        float elapsed = 0f;
+
+        while (elapsed < currentPlayerFadeDuration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / currentPlayerFadeDuration);
+            t = Mathf.SmoothStep(0f, 1f, t);
+
+            currentPlayerPanelCanvasGroup.alpha = Mathf.Lerp(startAlpha, targetAlpha, t);
+            yield return null;
+        }
+
+        currentPlayerPanelCanvasGroup.alpha = targetAlpha;
+        currentPlayerPanelCanvasGroup.interactable = fadeIn;
+        currentPlayerPanelCanvasGroup.blocksRaycasts = fadeIn;
+
+        if (!fadeIn && currentPlayerPanel != null)
+            currentPlayerPanel.SetActive(false);
+
+        currentPlayerPanelFadeCoroutine = null;
     }
 }

@@ -17,5 +17,6 @@
     {
         PlayerCount = 4;
         WinnerIndex = -1;
+        PlayerCharacters = new int[4];
     }
 }

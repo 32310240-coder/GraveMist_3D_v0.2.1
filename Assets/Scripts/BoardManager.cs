@@ -3,11 +3,17 @@ using System.Collections.Generic;
 
 public class BoardManager : MonoBehaviour
 {
+    [Header("Board Settings")]
     public int gridSize = 9;
-    public float boardSize = 9f; // 実際に使うサイズ（9×9）
+    public float boardSize = 9f;
+    public float pieceY = 0.1f;
+    public Vector3 boardOffset = Vector3.zero;
+
     private float cellSize;
 
+    [Header("Path")]
     public List<Vector2Int> outerPath = new List<Vector2Int>();
+
     void Awake()
     {
         cellSize = boardSize / gridSize;
@@ -37,27 +43,67 @@ public class BoardManager : MonoBehaviour
             outerPath.Add(new Vector2Int(x, 0));
     }
 
-    // グリッド座標 → ワールド座標
     public Vector3 GridToWorld(int x, int z)
     {
         float start = -boardSize / 2f + cellSize / 2f;
-        return new Vector3(start + x * cellSize, 0f, start + z * cellSize);
+
+        Vector3 localPos = new Vector3(
+            start + x * cellSize,
+            pieceY,
+            start + z * cellSize
+        );
+
+        return transform.position + boardOffset + localPos;
     }
 
-    // ワールド座標 → グリッド座標
     public Vector2Int WorldToGrid(Vector3 worldPos)
     {
+        Vector3 localPos = worldPos - transform.position - boardOffset;
+
         float start = -boardSize / 2f;
-        int x = Mathf.FloorToInt((worldPos.x - start) / cellSize);
-        int z = Mathf.FloorToInt((worldPos.z - start) / cellSize);
+        int x = Mathf.FloorToInt((localPos.x - start) / cellSize);
+        int z = Mathf.FloorToInt((localPos.z - start) / cellSize);
 
         Vector2Int grid = new Vector2Int(x, z);
-        Debug.Log($"World{worldPos} → Grid{grid}");
+        Debug.Log($"World {worldPos} → Grid {grid}");
         return grid;
     }
 
     public bool IsInsideBoard(int x, int z)
     {
         return x >= 0 && x < gridSize && z >= 0 && z < gridSize;
+    }
+
+    public Vector3 PathIndexToWorld(int pathIndex)
+    {
+        if (outerPath.Count == 0) return transform.position;
+
+        pathIndex = ((pathIndex % outerPath.Count) + outerPath.Count) % outerPath.Count;
+        Vector2Int cell = outerPath[pathIndex];
+        return GridToWorld(cell.x, cell.y);
+    }
+
+    void OnDrawGizmosSelected()
+    {
+        if (gridSize <= 0) return;
+
+        float cell = boardSize / gridSize;
+        float start = -boardSize / 2f + cell / 2f;
+
+        Gizmos.color = Color.cyan;
+
+        for (int x = 0; x < gridSize; x++)
+        {
+            for (int z = 0; z < gridSize; z++)
+            {
+                Vector3 pos = transform.position + boardOffset + new Vector3(
+                    start + x * cell,
+                    0.05f,
+                    start + z * cell
+                );
+
+                Gizmos.DrawSphere(pos, 0.06f);
+            }
+        }
     }
 }
