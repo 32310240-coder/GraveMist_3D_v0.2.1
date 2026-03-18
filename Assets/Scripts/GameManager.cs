@@ -11,15 +11,21 @@ public class EvolutionGaugeUI
     public Image[] gauges; // Gauge_1 ～ Gauge_3
 }
 
+[System.Serializable]
+public class MistSlotsUI
+{
+    public Image[] slots; // MistSlot_1 ～ MistSlot_7
+}
+
 public class GameManager : MonoBehaviour
 {
     [Header("Current Player Panel")]
     public GameObject currentPlayerPanel;
     public CanvasGroup currentPlayerPanelCanvasGroup;
+    public Image currentTurnImage;                // ← 追加
     public Image currentPlayerImage;
-    public TextMeshProUGUI currentTurnText;
-    public TextMeshProUGUI currentPlayerNameText;
     public EvolutionGaugeUI currentPlayerEvolutionGauge;
+    public MistSlotsUI currentPlayerMistSlots;   // ← 追加
 
     [Header("Current Player Panel Animation")]
     public float currentPlayerFadeDuration = 0.25f;
@@ -37,11 +43,15 @@ public class GameManager : MonoBehaviour
     [Header("Character Data")]
     public Sprite[] characterIcons;             // TopPlayerBar用
     public Sprite[] characterLargeSprites;      // CurrentPlayerPanel用
-    public string[] characterNames;             // キャラ名
+    public string[] characterNames;             // キャラ名（今は未使用でもOK）
 
     [Header("Evolution Gauge Sprites")]
-    public Sprite gaugeOnSprite;
-    public Sprite gaugeOffSprite;
+    public Sprite evolutionOnSprite;
+    public Sprite evolutionOffSprite;
+
+    [Header("Mist Slot Sprites")]
+    public Sprite mistEmptySprite;              // 空枠用
+    // 所持中は既存の mistSprites を使う
 
     [Header("UI")]
     public GameObject dragArea;
@@ -65,6 +75,8 @@ public class GameManager : MonoBehaviour
     [Header("Board / Player")]
     public BoardManager boardManager;
     public GameObject playerPrefab;
+    [Header("Layout Control")]
+    public Behaviour rightInfoLayoutGroup;
 
     private readonly List<GameObject> spawnedGraves = new List<GameObject>();
     private readonly List<GameObject> players = new List<GameObject>();
@@ -79,12 +91,31 @@ public class GameManager : MonoBehaviour
 
     private int currentPlayerIndex = 0;
     private Coroutine moveCoroutine;
+    private Coroutine currentPlayerPanelFadeCoroutine;
 
     private bool hasAnyFallen = false;
     private int stoppedCount = 0;
     private int totalSteps = 0;
     private readonly HashSet<GraveController> stoppedGraves = new HashSet<GraveController>();
 
+    [Header("Mist Zoom View")]
+    public RectTransform currentPlayerMistSlotsTransform;
+    public CanvasGroup dimOverlayCanvasGroup;
+    public float mistZoomScale = 1.5f;
+    public float mistZoomDuration = 0.2f;
+
+    private bool isMistZoomed = false;
+    private Coroutine mistZoomCoroutine;
+    private Vector3 mistSlotsNormalScale = Vector3.one;
+
+    [Header("Mist Zoom Back Button")]
+    public GameObject mistZoomBackButton;
+    public CanvasGroup mistZoomBackButtonCanvasGroup;
+    public float backButtonFadeDuration = 0.2f;
+    private Coroutine backButtonFadeCoroutine;
+
+    private Vector2 mistSlotsNormalAnchoredPosition;
+    private int mistSlotsNormalSiblingIndex;
     public enum GameState
     {
         Idle,
@@ -119,6 +150,22 @@ public class GameManager : MonoBehaviour
         EnterTurnStart();
         RefreshAllPlayerUI();
         ShowCurrentPlayerPanelImmediate();
+
+        if (currentPlayerMistSlotsTransform != null)
+        {
+            mistSlotsNormalScale = currentPlayerMistSlotsTransform.localScale;
+            mistSlotsNormalAnchoredPosition = currentPlayerMistSlotsTransform.anchoredPosition;
+            mistSlotsNormalSiblingIndex = currentPlayerMistSlotsTransform.GetSiblingIndex();
+        }
+        HideMistZoomBackButtonImmediate();
+        if (dimOverlayCanvasGroup != null)
+        {
+            dimOverlayCanvasGroup.alpha = 0f;
+            dimOverlayCanvasGroup.interactable = false;
+            dimOverlayCanvasGroup.blocksRaycasts = false;
+            dimOverlayCanvasGroup.gameObject.SetActive(false);
+        }
+
     }
 
     void ValidateGameSessionData()
@@ -192,21 +239,24 @@ public class GameManager : MonoBehaviour
             }
         }
     }
+
     void RefreshCurrentPlayerPanel()
     {
+        if (players.Count == 0) return;
+
         int playerIndex = currentPlayerIndex;
         int charIndex = GameSession.PlayerCharacters[playerIndex];
 
-        if (currentTurnText != null)
-            currentTurnText.text = $"{playerIndex + 1}P のターン";
-
-        if (currentPlayerNameText != null &&
-            charIndex >= 0 &&
-            charIndex < characterNames.Length)
+        // 今ターンのプレイヤー番号画像
+        if (currentTurnImage != null &&
+            playerNumberSprites != null &&
+            playerIndex >= 0 &&
+            playerIndex < playerNumberSprites.Length)
         {
-            currentPlayerNameText.text = characterNames[charIndex];
+            currentTurnImage.sprite = playerNumberSprites[playerIndex];
         }
 
+        // 今ターンのキャラ立ち絵
         if (currentPlayerImage != null &&
             charIndex >= 0 &&
             charIndex < characterLargeSprites.Length)
@@ -214,14 +264,19 @@ public class GameManager : MonoBehaviour
             currentPlayerImage.sprite = characterLargeSprites[charIndex];
         }
 
+        // 進化ゲージ
         RefreshEvolutionGauge(currentPlayerEvolutionGauge, playerEvolutionLevels[playerIndex]);
+
+        // 手持ちMist
+        if (playerIndex >= 0 && playerIndex < playerMists.Count)
+        {
+            RefreshMistSlots(currentPlayerMistSlots, playerMists[playerIndex]);
+        }
     }
 
     void RefreshEvolutionGauge(EvolutionGaugeUI gaugeUI, int level)
     {
         if (gaugeUI == null || gaugeUI.gauges == null) return;
-
-        level = Mathf.Clamp(level, 0, 3);
 
         for (int i = 0; i < gaugeUI.gauges.Length; i++)
         {
@@ -229,13 +284,51 @@ public class GameManager : MonoBehaviour
 
             bool isOn = i < level;
 
-            if (gaugeOnSprite != null && gaugeOffSprite != null)
+            if (isOn)
             {
-                gaugeUI.gauges[i].sprite = isOn ? gaugeOnSprite : gaugeOffSprite;
+                gaugeUI.gauges[i].sprite = evolutionOnSprite;
             }
             else
             {
-                gaugeUI.gauges[i].color = isOn ? Color.white : Color.gray;
+                gaugeUI.gauges[i].sprite = evolutionOffSprite;
+            }
+
+            gaugeUI.gauges[i].enabled = true;
+            gaugeUI.gauges[i].color = Color.white;
+        }
+    }
+
+    void RefreshMistSlots(MistSlotsUI mistUI, List<MistType> mists)
+    {
+        if (mistUI == null || mistUI.slots == null) return;
+
+        for (int i = 0; i < mistUI.slots.Length; i++)
+        {
+            if (mistUI.slots[i] == null) continue;
+
+            if (i < mists.Count)
+            {
+                int spriteIndex = (int)mists[i] - 1;
+
+                if (mistSprites != null && spriteIndex >= 0 && spriteIndex < mistSprites.Length)
+                {
+                    mistUI.slots[i].sprite = mistSprites[spriteIndex];
+                    mistUI.slots[i].enabled = true;
+                    mistUI.slots[i].color = Color.white;
+                }
+            }
+            else
+            {
+                if (mistEmptySprite != null)
+                {
+                    mistUI.slots[i].sprite = mistEmptySprite;
+                    mistUI.slots[i].enabled = true;
+                    mistUI.slots[i].color = new Color(1f, 1f, 1f, 0.35f);
+                }
+                else
+                {
+                    mistUI.slots[i].enabled = false;
+                }
             }
         }
     }
@@ -334,9 +427,14 @@ public class GameManager : MonoBehaviour
 
         Debug.Log($"Player {playerIndex + 1} got mist: {mist}");
 
-        if (mistPanel.activeSelf && playerIndex == currentPlayerIndex)
+        if (mistPanel != null && mistPanel.activeSelf && playerIndex == currentPlayerIndex)
         {
             RefreshMistPanelUI(playerIndex);
+        }
+
+        if (playerIndex == currentPlayerIndex)
+        {
+            RefreshCurrentPlayerPanel();
         }
     }
 
@@ -388,21 +486,122 @@ public class GameManager : MonoBehaviour
 
     public void OnMistPressed()
     {
-        if (mistPanel == null) return;
+        if (isMistZoomed) return;   // 戻るボタンで閉じる運用ならこれ推奨
+        ToggleMistZoom();
+    }
+    void ToggleMistZoom()
+    {
+        isMistZoomed = !isMistZoomed;
 
-        bool active = mistPanel.activeSelf;
+        // ←ここ追加
+        if (rightInfoLayoutGroup != null)
+            rightInfoLayoutGroup.enabled = !isMistZoomed;
 
-        if (active)
+        if (mistZoomCoroutine != null)
+            StopCoroutine(mistZoomCoroutine);
+
+        mistZoomCoroutine = StartCoroutine(AnimateMistZoom(isMistZoomed));
+
+        FadeMistZoomBackButton(isMistZoomed);
+    }
+    public void OnMistZoomBackButtonPressed()
+    {
+        if (!isMistZoomed) return;
+
+        isMistZoomed = false;
+
+        if (mistZoomCoroutine != null)
+            StopCoroutine(mistZoomCoroutine);
+
+        mistZoomCoroutine = StartCoroutine(AnimateMistZoom(false));
+
+        FadeMistZoomBackButton(false);
+    }
+    IEnumerator AnimateMistZoom(bool zoomIn)
+    {
+        if (currentPlayerMistSlotsTransform == null)
+            yield break;
+
+        if (dimOverlayCanvasGroup != null && zoomIn)
         {
-            mistPanel.SetActive(false);
+            dimOverlayCanvasGroup.gameObject.SetActive(true);
+        }
+
+        // 拡大前の通常位置を毎回保存
+        if (!zoomIn)
+        {
+            // 戻す時は保存済みを使う
         }
         else
         {
-            mistPanel.SetActive(true);
-            RefreshMistPanelUI(currentPlayerIndex);
+            mistSlotsNormalAnchoredPosition = currentPlayerMistSlotsTransform.anchoredPosition;
+            mistSlotsNormalSiblingIndex = currentPlayerMistSlotsTransform.GetSiblingIndex();
         }
-    }
 
+        // 前面へ
+        if (zoomIn)
+        {
+            currentPlayerMistSlotsTransform.SetAsLastSibling();
+        }
+
+        Vector3 startScale = currentPlayerMistSlotsTransform.localScale;
+        Vector3 targetScale = zoomIn
+            ? mistSlotsNormalScale * mistZoomScale
+            : mistSlotsNormalScale;
+
+        Vector2 startPos = currentPlayerMistSlotsTransform.anchoredPosition;
+        Vector2 targetPos = zoomIn
+            ? mistSlotsNormalAnchoredPosition
+            : mistSlotsNormalAnchoredPosition;
+
+        float startAlpha = dimOverlayCanvasGroup != null ? dimOverlayCanvasGroup.alpha : 0f;
+        float targetAlpha = zoomIn ? 0.45f : 0f;
+
+        float elapsed = 0f;
+
+        while (elapsed < mistZoomDuration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / mistZoomDuration);
+            t = Mathf.SmoothStep(0f, 1f, t);
+
+            currentPlayerMistSlotsTransform.localScale =
+                Vector3.Lerp(startScale, targetScale, t);
+
+            currentPlayerMistSlotsTransform.anchoredPosition =
+                Vector2.Lerp(startPos, targetPos, t);
+
+            if (dimOverlayCanvasGroup != null)
+            {
+                dimOverlayCanvasGroup.alpha = Mathf.Lerp(startAlpha, targetAlpha, t);
+            }
+
+            yield return null;
+        }
+
+        currentPlayerMistSlotsTransform.localScale = targetScale;
+        currentPlayerMistSlotsTransform.anchoredPosition = targetPos;
+
+        if (!zoomIn)
+        {
+            currentPlayerMistSlotsTransform.SetSiblingIndex(mistSlotsNormalSiblingIndex);
+        }
+
+        if (dimOverlayCanvasGroup != null)
+        {
+            dimOverlayCanvasGroup.alpha = targetAlpha;
+
+            if (!zoomIn)
+            {
+                dimOverlayCanvasGroup.gameObject.SetActive(false);
+            }
+        }
+        if (!zoomIn && rightInfoLayoutGroup != null)
+        {
+            rightInfoLayoutGroup.enabled = true;
+        }
+        mistZoomCoroutine = null;
+    }
     void EnterTurnStart()
     {
         if (turnButtons != null) turnButtons.SetActive(true);
@@ -435,7 +634,31 @@ public class GameManager : MonoBehaviour
 
         Debug.Log($"▶ {currentPlayerIndex + 1}P のターン");
     }
+    void ShowMistZoomBackButtonImmediate()
+    {
+        if (mistZoomBackButton != null)
+            mistZoomBackButton.SetActive(true);
 
+        if (mistZoomBackButtonCanvasGroup != null)
+        {
+            mistZoomBackButtonCanvasGroup.alpha = 1f;
+            mistZoomBackButtonCanvasGroup.interactable = true;
+            mistZoomBackButtonCanvasGroup.blocksRaycasts = true;
+        }
+    }
+
+    void HideMistZoomBackButtonImmediate()
+    {
+        if (mistZoomBackButtonCanvasGroup != null)
+        {
+            mistZoomBackButtonCanvasGroup.alpha = 0f;
+            mistZoomBackButtonCanvasGroup.interactable = false;
+            mistZoomBackButtonCanvasGroup.blocksRaycasts = false;
+        }
+
+        if (mistZoomBackButton != null)
+            mistZoomBackButton.SetActive(false);
+    }
     // =========================================================
     // Drag → 発射
     // =========================================================
@@ -591,7 +814,17 @@ public class GameManager : MonoBehaviour
         bool wasFinal = pc.IsFinalStage();
 
         if (IsCorner(stopGrid))
-            pc.AdvanceEvolution();
+        {
+            if (GetPlayerEvolutionLevel(currentPlayerIndex) < 3)
+            {
+                pc.AdvanceEvolution();
+                AddEvolutionLevel(currentPlayerIndex, 1);
+            }
+            else
+            {
+                pc.AdvanceEvolution();
+            }
+        }
 
         bool isFinalNow = pc.IsFinalStage();
         bool becameFinalHere = (!wasFinal && isFinalNow);
@@ -616,6 +849,7 @@ public class GameManager : MonoBehaviour
     void NextTurn()
     {
         ClearSpawnedGraves();
+        ResetMistZoomImmediate();
 
         currentPlayerIndex = (currentPlayerIndex + 1) % players.Count;
 
@@ -623,7 +857,31 @@ public class GameManager : MonoBehaviour
         RefreshAllPlayerUI();
         FadeCurrentPlayerPanel(true);
     }
+    void ResetMistZoomImmediate()
+    {
+        isMistZoomed = false;
 
+        if (mistZoomCoroutine != null)
+        {
+            StopCoroutine(mistZoomCoroutine);
+            mistZoomCoroutine = null;
+        }
+
+        if (currentPlayerMistSlotsTransform != null)
+        {
+            currentPlayerMistSlotsTransform.localScale = mistSlotsNormalScale;
+        }
+
+        if (dimOverlayCanvasGroup != null)
+        {
+            dimOverlayCanvasGroup.alpha = 0f;
+            dimOverlayCanvasGroup.interactable = false;
+            dimOverlayCanvasGroup.blocksRaycasts = false;
+            dimOverlayCanvasGroup.gameObject.SetActive(false);
+        }
+
+        HideMistZoomBackButtonImmediate();
+    }
     IEnumerator MoveToPosition(Transform obj, Vector3 target, float time)
     {
         Vector3 start = obj.position;
@@ -690,8 +948,6 @@ public class GameManager : MonoBehaviour
         if (playerIndex < 0 || playerIndex >= playerMists.Count) return 0;
         return playerMists[playerIndex].Count;
     }
-
-    Coroutine currentPlayerPanelFadeCoroutine;
 
     void ShowCurrentPlayerPanelImmediate()
     {
@@ -762,5 +1018,49 @@ public class GameManager : MonoBehaviour
             currentPlayerPanel.SetActive(false);
 
         currentPlayerPanelFadeCoroutine = null;
+    }
+    void FadeMistZoomBackButton(bool fadeIn)
+    {
+        if (mistZoomBackButtonCanvasGroup == null)
+        {
+            if (mistZoomBackButton != null)
+                mistZoomBackButton.SetActive(fadeIn);
+            return;
+        }
+
+        if (backButtonFadeCoroutine != null)
+            StopCoroutine(backButtonFadeCoroutine);
+
+        backButtonFadeCoroutine = StartCoroutine(FadeMistZoomBackButtonCoroutine(fadeIn));
+    }
+
+    IEnumerator FadeMistZoomBackButtonCoroutine(bool fadeIn)
+    {
+        if (mistZoomBackButton != null && fadeIn)
+            mistZoomBackButton.SetActive(true);
+
+        float startAlpha = mistZoomBackButtonCanvasGroup.alpha;
+        float targetAlpha = fadeIn ? 1f : 0f;
+
+        float elapsed = 0f;
+
+        while (elapsed < backButtonFadeDuration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / backButtonFadeDuration);
+            t = Mathf.SmoothStep(0f, 1f, t);
+
+            mistZoomBackButtonCanvasGroup.alpha = Mathf.Lerp(startAlpha, targetAlpha, t);
+            yield return null;
+        }
+
+        mistZoomBackButtonCanvasGroup.alpha = targetAlpha;
+        mistZoomBackButtonCanvasGroup.interactable = fadeIn;
+        mistZoomBackButtonCanvasGroup.blocksRaycasts = fadeIn;
+
+        if (!fadeIn && mistZoomBackButton != null)
+            mistZoomBackButton.SetActive(false);
+
+        backButtonFadeCoroutine = null;
     }
 }
