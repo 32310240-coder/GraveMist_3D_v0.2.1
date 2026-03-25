@@ -17,12 +17,16 @@ public class MistSlotsUI
     public Image[] slots; // MistSlot_1 ～ MistSlot_7
 }
 
+[System.Serializable]
+public class MPSlotsUI
+{
+    public Image[] slots; // MpSlot_1 ～ MpSlot_30
+}
 public class GameManager : MonoBehaviour
 {
     [Header("Current Player Panel")]
     public GameObject currentPlayerPanel;
     public CanvasGroup currentPlayerPanelCanvasGroup;
-    public Image currentTurnImage;                // ← 追加
     public Image currentPlayerImage;
     public EvolutionGaugeUI currentPlayerEvolutionGauge;
     public MistSlotsUI currentPlayerMistSlots;   // ← 追加
@@ -48,10 +52,6 @@ public class GameManager : MonoBehaviour
     [Header("Evolution Gauge Sprites")]
     public Sprite evolutionOnSprite;
     public Sprite evolutionOffSprite;
-
-    [Header("Mist Slot Sprites")]
-    public Sprite mistEmptySprite;              // 空枠用
-    // 所持中は既存の mistSprites を使う
 
     [Header("UI")]
     public GameObject dragArea;
@@ -99,7 +99,7 @@ public class GameManager : MonoBehaviour
     private readonly HashSet<GraveController> stoppedGraves = new HashSet<GraveController>();
 
     [Header("Mist Zoom View")]
-    public RectTransform currentPlayerMistSlotsTransform;
+    public RectTransform mistZoomTarget;
     public CanvasGroup dimOverlayCanvasGroup;
     public float mistZoomScale = 1.5f;
     public float mistZoomDuration = 0.2f;
@@ -116,6 +116,14 @@ public class GameManager : MonoBehaviour
 
     private Vector2 mistSlotsNormalAnchoredPosition;
     private int mistSlotsNormalSiblingIndex;
+
+    [Header("MP UI")]
+    public MPSlotsUI currentPlayerMPSlots;
+    public Sprite mpOnSprite;
+    public Sprite mpOffSprite;
+    private int[] playerMP = new int[4];
+    private const int MAX_MP = 30;
+
     public enum GameState
     {
         Idle,
@@ -151,11 +159,11 @@ public class GameManager : MonoBehaviour
         RefreshAllPlayerUI();
         ShowCurrentPlayerPanelImmediate();
 
-        if (currentPlayerMistSlotsTransform != null)
+        if (mistZoomTarget != null)
         {
-            mistSlotsNormalScale = currentPlayerMistSlotsTransform.localScale;
-            mistSlotsNormalAnchoredPosition = currentPlayerMistSlotsTransform.anchoredPosition;
-            mistSlotsNormalSiblingIndex = currentPlayerMistSlotsTransform.GetSiblingIndex();
+            mistSlotsNormalScale = mistZoomTarget.localScale;
+            mistSlotsNormalAnchoredPosition = mistZoomTarget.anchoredPosition;
+            mistSlotsNormalSiblingIndex = mistZoomTarget.GetSiblingIndex();
         }
         HideMistZoomBackButtonImmediate();
         if (dimOverlayCanvasGroup != null)
@@ -183,6 +191,7 @@ public class GameManager : MonoBehaviour
         for (int i = 0; i < playerEvolutionLevels.Length; i++)
         {
             playerEvolutionLevels[i] = 0;
+            playerMP[i] = 0;
         }
     }
 
@@ -247,15 +256,6 @@ public class GameManager : MonoBehaviour
         int playerIndex = currentPlayerIndex;
         int charIndex = GameSession.PlayerCharacters[playerIndex];
 
-        // 今ターンのプレイヤー番号画像
-        if (currentTurnImage != null &&
-            playerNumberSprites != null &&
-            playerIndex >= 0 &&
-            playerIndex < playerNumberSprites.Length)
-        {
-            currentTurnImage.sprite = playerNumberSprites[playerIndex];
-        }
-
         // 今ターンのキャラ立ち絵
         if (currentPlayerImage != null &&
             charIndex >= 0 &&
@@ -272,6 +272,7 @@ public class GameManager : MonoBehaviour
         {
             RefreshMistSlots(currentPlayerMistSlots, playerMists[playerIndex]);
         }
+        RefreshMPSlots(currentPlayerMPSlots, playerMP[playerIndex]);
     }
 
     void RefreshEvolutionGauge(EvolutionGaugeUI gaugeUI, int level)
@@ -319,16 +320,7 @@ public class GameManager : MonoBehaviour
             }
             else
             {
-                if (mistEmptySprite != null)
-                {
-                    mistUI.slots[i].sprite = mistEmptySprite;
-                    mistUI.slots[i].enabled = true;
-                    mistUI.slots[i].color = new Color(1f, 1f, 1f, 0.35f);
-                }
-                else
-                {
-                    mistUI.slots[i].enabled = false;
-                }
+                mistUI.slots[i].enabled = false;
             }
         }
     }
@@ -519,7 +511,7 @@ public class GameManager : MonoBehaviour
     }
     IEnumerator AnimateMistZoom(bool zoomIn)
     {
-        if (currentPlayerMistSlotsTransform == null)
+        if (mistZoomTarget == null)
             yield break;
 
         if (dimOverlayCanvasGroup != null && zoomIn)
@@ -534,28 +526,28 @@ public class GameManager : MonoBehaviour
         }
         else
         {
-            mistSlotsNormalAnchoredPosition = currentPlayerMistSlotsTransform.anchoredPosition;
-            mistSlotsNormalSiblingIndex = currentPlayerMistSlotsTransform.GetSiblingIndex();
+            mistSlotsNormalAnchoredPosition = mistZoomTarget.anchoredPosition;
+            mistSlotsNormalSiblingIndex = mistZoomTarget.GetSiblingIndex();
         }
 
         // 前面へ
         if (zoomIn)
         {
-            currentPlayerMistSlotsTransform.SetAsLastSibling();
+            mistZoomTarget.SetAsLastSibling();
         }
 
-        Vector3 startScale = currentPlayerMistSlotsTransform.localScale;
+        Vector3 startScale = mistZoomTarget.localScale;
         Vector3 targetScale = zoomIn
             ? mistSlotsNormalScale * mistZoomScale
             : mistSlotsNormalScale;
 
-        Vector2 startPos = currentPlayerMistSlotsTransform.anchoredPosition;
+        Vector2 startPos = mistZoomTarget.anchoredPosition;
         Vector2 targetPos = zoomIn
             ? mistSlotsNormalAnchoredPosition
             : mistSlotsNormalAnchoredPosition;
 
         float startAlpha = dimOverlayCanvasGroup != null ? dimOverlayCanvasGroup.alpha : 0f;
-        float targetAlpha = zoomIn ? 0.45f : 0f;
+        float targetAlpha = zoomIn ? 0.75f : 0f;
 
         float elapsed = 0f;
 
@@ -565,10 +557,10 @@ public class GameManager : MonoBehaviour
             float t = Mathf.Clamp01(elapsed / mistZoomDuration);
             t = Mathf.SmoothStep(0f, 1f, t);
 
-            currentPlayerMistSlotsTransform.localScale =
+            mistZoomTarget.localScale =
                 Vector3.Lerp(startScale, targetScale, t);
 
-            currentPlayerMistSlotsTransform.anchoredPosition =
+            mistZoomTarget.anchoredPosition =
                 Vector2.Lerp(startPos, targetPos, t);
 
             if (dimOverlayCanvasGroup != null)
@@ -579,12 +571,12 @@ public class GameManager : MonoBehaviour
             yield return null;
         }
 
-        currentPlayerMistSlotsTransform.localScale = targetScale;
-        currentPlayerMistSlotsTransform.anchoredPosition = targetPos;
+        mistZoomTarget.localScale = targetScale;
+        mistZoomTarget.anchoredPosition = targetPos;
 
         if (!zoomIn)
         {
-            currentPlayerMistSlotsTransform.SetSiblingIndex(mistSlotsNormalSiblingIndex);
+            mistZoomTarget.SetSiblingIndex(mistSlotsNormalSiblingIndex);
         }
 
         if (dimOverlayCanvasGroup != null)
@@ -658,6 +650,68 @@ public class GameManager : MonoBehaviour
 
         if (mistZoomBackButton != null)
             mistZoomBackButton.SetActive(false);
+    }
+    public void OnMistSlotClicked(int slotIndex)
+    {
+        UseMist(slotIndex);
+    }
+
+    void UseMist(int slotIndex)
+    {
+        int playerIndex = currentPlayerIndex;
+
+        if (playerIndex < 0 || playerIndex >= playerMists.Count) return;
+        if (slotIndex < 0 || slotIndex >= playerMists[playerIndex].Count) return;
+
+        MistType usedMist = playerMists[playerIndex][slotIndex];
+
+        Debug.Log($"Player {playerIndex + 1} used Mist: {usedMist}");
+
+        // TODO: 効果は後で実装
+
+        // Mist削除
+        playerMists[playerIndex].RemoveAt(slotIndex);
+
+        // UI更新
+        RefreshCurrentPlayerPanel();
+
+        // MP加算（あとで実装）
+        AddMP(playerIndex, 1);
+    }
+    void AddMP(int playerIndex, int amount)
+    {
+        if (playerIndex < 0 || playerIndex >= playerMP.Length) return;
+
+        playerMP[playerIndex] += amount;
+
+        if (playerMP[playerIndex] >= MAX_MP)
+        {
+            playerMP[playerIndex] -= MAX_MP;
+            AddEvolutionLevel(playerIndex, 1);
+
+            Debug.Log($"Player {playerIndex + 1} Evolution via MP!");
+        }
+
+        Debug.Log($"Player {playerIndex + 1} MP: {playerMP[playerIndex]}");
+
+        RefreshAllPlayerUI();
+    }
+    void RefreshMPSlots(MPSlotsUI mpUI, int mpValue)
+    {
+        if (mpUI == null || mpUI.slots == null) return;
+
+        mpValue = Mathf.Clamp(mpValue, 0, MAX_MP);
+
+        for (int i = 0; i < mpUI.slots.Length; i++)
+        {
+            if (mpUI.slots[i] == null) continue;
+
+            bool isOn = i < mpValue;
+
+            mpUI.slots[i].enabled = true;
+            mpUI.slots[i].sprite = isOn ? mpOnSprite : mpOffSprite;
+            mpUI.slots[i].color = Color.white;
+        }
     }
     // =========================================================
     // Drag → 発射
@@ -867,9 +921,9 @@ public class GameManager : MonoBehaviour
             mistZoomCoroutine = null;
         }
 
-        if (currentPlayerMistSlotsTransform != null)
+        if (mistZoomTarget != null)
         {
-            currentPlayerMistSlotsTransform.localScale = mistSlotsNormalScale;
+            mistZoomTarget.localScale = mistSlotsNormalScale;
         }
 
         if (dimOverlayCanvasGroup != null)
@@ -1063,4 +1117,5 @@ public class GameManager : MonoBehaviour
 
         backButtonFadeCoroutine = null;
     }
+    
 }
