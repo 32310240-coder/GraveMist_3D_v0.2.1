@@ -72,6 +72,24 @@ public class GameManager : MonoBehaviour
     public Material greenMat;
     public Material orangeMat;
 
+    [Header("Grave Throw")]
+    public float spawnHeight = 5f;
+    public float baseForce = 7.5f;
+    public float downwardForce = 0.8f;
+    public float forceJitter = 0.15f;
+    public float torquePower = 0.4f;
+
+    public float[] distanceRatios = { 0.25f, 0.45f, 0.7f, 1.0f };
+    public float[] sideOffsets = { -0.3f, 0.2f, -0.15f, 0.3f };
+
+    public float spawnSpreadMultiplier = 1.35f;
+    public float sideForceMultiplier = 0.55f;
+    public float randomSpawnSideRange = 0.08f;
+    public float randomSideForceRange = 0.10f;
+    public float forwardVarianceMin = 0.92f;
+    public float forwardVarianceMax = 1.08f;
+    public float forwardFlipTorque = 1.2f;
+
     [Header("Board / Player")]
     public BoardManager boardManager;
     public GameObject playerPrefab;
@@ -716,22 +734,30 @@ public class GameManager : MonoBehaviour
     // =========================================================
     // Drag → 発射
     // =========================================================
+
+Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
+    {
+        Ray ray = new Ray(dragWorldPos + Vector3.up * 10f, Vector3.down);
+        if(Physics.Raycast(ray,out RaycastHit hit,50f))
+        {
+            if(hit.collider.gameObject==boardManager.gameObject)
+            {
+                return hit.point;
+            }
+        }
+        return new Vector3(dragWorldPos.x, 5f, dragWorldPos.z);
+    }
     public void OnShakeRelease(Vector3 launchPos, Vector2 dir2D, float dragDistance, float speed)
     {
         if (currentState != GameState.Shake) return;
+        if (dir2D.sqrMagnitude < 0.0001f) return;
 
         Vector3 dir3D = new Vector3(dir2D.x, 0f, dir2D.y).normalized;
 
-        float power = Mathf.Clamp(dragDistance / 300f, 0.2f, 1f);
-        float speedFactor = Mathf.Clamp(speed / 1500f, 0.6f, 1.1f);
-
-        Vector3 launchDir = (dir3D + Vector3.up * 0.1f).normalized;
-        float finalPower = 2.5f * power * speedFactor;
-
-        SpawnAndLaunchGraves(launchPos, launchDir, finalPower);
+        SpawnAndLaunchGraves(launchPos, dir3D, dragDistance);
     }
 
-    void SpawnAndLaunchGraves(Vector3 launchPos, Vector3 dir, float power)
+    void SpawnAndLaunchGraves(Vector3 launchPos, Vector3 dir, float dragDistance)
     {
         ClearSpawnedGraves();
 
@@ -740,27 +766,75 @@ public class GameManager : MonoBehaviour
         stoppedGraves.Clear();
         hasAnyFallen = false;
 
-        float boardY = boardManager.transform.position.y;
-        float halfHeight = gravePrefab.GetComponent<Collider>().bounds.extents.y;
-        float spawnY = boardY + halfHeight + 4.5f;
+        Vector3 forward = dir;
+        forward.y = 0f;
+
+        if (forward.sqrMagnitude < 0.0001f)
+            forward = Vector3.forward;
+
+        forward.Normalize();
+
+        Vector3 side = Vector3.Cross(Vector3.up, forward).normalized;
+
+        float power = Mathf.Clamp(dragDistance, 0.5f, 10f);
 
         for (int i = 0; i < graveCount; i++)
         {
-            Vector3 spawnPos = launchPos;
-            spawnPos.y = spawnY;
+            float ratio = GetArrayValueOrDefault(distanceRatios, i, 1f);
+            float sideOffset = GetArrayValueOrDefault(sideOffsets, i, 0f);
 
-            GameObject grave = Instantiate(gravePrefab, spawnPos, Random.rotation);
+            float randomSpawnSide = Random.Range(-randomSpawnSideRange, randomSpawnSideRange);
+
+            Vector3 spawnPos =
+                launchPos
+                + side * (sideOffset * spawnSpreadMultiplier + randomSpawnSide)
+                + Vector3.up * spawnHeight;
+
+            GameObject grave = Instantiate(gravePrefab, spawnPos, Quaternion.identity);
 
             Rigidbody rb = grave.GetComponent<Rigidbody>();
             rb.linearVelocity = Vector3.zero;
             rb.angularVelocity = Vector3.zero;
 
+            rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+            rb.interpolation = RigidbodyInterpolation.Interpolate;
+            rb.linearDamping = 1.0f;
+            rb.angularDamping = 3.5f;
+
+            // 進行方向を向きつつ、少し前傾＆ランダム姿勢
+            rb.rotation =
+                Quaternion.LookRotation(forward, Vector3.up) *
+                Quaternion.Euler(
+                    -25f,
+                    Random.Range(-8f, 8f),
+                    Random.Range(-8f, 8f)
+                );
+
             GraveController gc = grave.GetComponent<GraveController>();
             gc.OnStopped -= OnGraveStopped;
             gc.OnStopped += OnGraveStopped;
 
-            rb.AddForce(dir * power, ForceMode.Impulse);
-            rb.AddTorque(Random.insideUnitSphere * 4f, ForceMode.Impulse);
+            float forwardVariance = Random.Range(forwardVarianceMin, forwardVarianceMax);
+            float force = baseForce * ratio * power * forwardVariance;
+            float randomSide = Random.Range(-randomSideForceRange, randomSideForceRange);
+
+            Vector3 finalForce =
+                forward * (force + Random.Range(-forceJitter, forceJitter))
+                + side * (sideOffset * sideForceMultiplier + randomSide)
+                + Vector3.down * downwardForce;
+
+            rb.AddForce(finalForce, ForceMode.Impulse);
+
+            // 前後回転を少し入れる
+            Vector3 torque =
+                side * forwardFlipTorque +
+                new Vector3(
+                    Random.Range(-1f, 1f),
+                    Random.Range(-0.3f, 0.3f),
+                    Random.Range(-1f, 1f)
+                ) * torquePower;
+
+            rb.AddTorque(torque, ForceMode.Impulse);
 
             spawnedGraves.Add(grave);
         }
@@ -893,7 +967,13 @@ public class GameManager : MonoBehaviour
 
         NextTurn();
     }
+    float GetArrayValueOrDefault(float[] array, int index, float defaultValue)
+    {
+        if (array == null || index < 0 || index >= array.Length)
+            return defaultValue;
 
+        return array[index];
+    }
     float RoundTo90(float y)
     {
         y = Mathf.Repeat(y, 360f);
