@@ -147,7 +147,13 @@ public class GameManager : MonoBehaviour
         Idle,
         Shake
     }
-
+    public enum MistType
+    {
+        Hole = 1,
+        Plus1 = 2,
+        Double = 3,
+        Uturn = 4
+    }
     public GameState currentState = GameState.Idle;
 
     private GameObject CurrentPlayer => players[currentPlayerIndex];
@@ -157,6 +163,21 @@ public class GameManager : MonoBehaviour
         get => playerPathIndices[currentPlayerIndex];
         set => playerPathIndices[currentPlayerIndex] = value;
     }
+    // =============================
+    // Hole（落とし穴）管理
+    // =============================
+
+    // key   : outerPath の index（どの外周マスか）
+    // value : その穴を設置したプレイヤー番号
+    private Dictionary<int, int> holeOwnerByPathIndex = new Dictionary<int, int>();
+
+    [Header("Hole Visual")]
+    public GameObject holeMarkerPrefab;   // 穴の見た目用プレハブ
+    public Sprite[] holeSprites;          // Hole1.png ～ Hole4.png
+
+    // key   : outerPath の index
+    // value : その穴の見た目オブジェクト
+    private Dictionary<int, GameObject> holeVisualsByPathIndex = new Dictionary<int, GameObject>();
 
     void Awake()
     {
@@ -421,7 +442,7 @@ public class GameManager : MonoBehaviour
         {
             for (int j = 0; j < START_MIST; j++)
             {
-                MistType mist = (MistType)Random.Range(1, 6);
+                MistType mist = (MistType)Random.Range(1, 5);
                 playerMists[i].Add(mist);
             }
         }
@@ -432,7 +453,7 @@ public class GameManager : MonoBehaviour
         if (playerIndex < 0 || playerIndex >= playerMists.Count) return;
         if (playerMists[playerIndex].Count >= MAX_MIST) return;
 
-        MistType mist = (MistType)Random.Range(1, 6);
+        MistType mist = (MistType)Random.Range(1, 5);
         playerMists[playerIndex].Add(mist);
 
         Debug.Log($"Player {playerIndex + 1} got mist: {mist}");
@@ -685,7 +706,31 @@ public class GameManager : MonoBehaviour
 
         Debug.Log($"Player {playerIndex + 1} used Mist: {usedMist}");
 
-        // TODO: 効果は後で実装
+        // =========================
+        // Mistの種類ごとに効果発動
+        // =========================
+        switch (usedMist)
+        {
+            case MistType.Hole:
+                ActivateHole(playerIndex);
+                break;
+
+            case MistType.Plus1:
+                ActivatePlus1(playerIndex);
+                break;
+
+            case MistType.Double:
+                ActivateDouble(playerIndex);
+                break;
+
+            case MistType.Uturn:
+                ActivateUturn(playerIndex);
+                break;
+
+            default:
+                Debug.LogWarning("未対応のMistです");
+                break;
+        }
 
         // Mist削除
         playerMists[playerIndex].RemoveAt(slotIndex);
@@ -693,8 +738,103 @@ public class GameManager : MonoBehaviour
         // UI更新
         RefreshCurrentPlayerPanel();
 
-        // MP加算（あとで実装）
+        // MP加算
         AddMP(playerIndex, 1);
+    }
+    void ActivateHole(int playerIndex)
+    {
+        // 外周マスのうち、角を除いたマスだけ候補にする
+        List<int> candidates = new List<int>();
+
+        for (int i = 0; i < boardManager.outerPath.Count; i++)
+        {
+            Vector2Int grid = boardManager.outerPath[i];
+
+            // 角は除外
+            if (IsCorner(grid)) continue;
+
+            // すでに穴があるマスは除外
+            if (holeOwnerByPathIndex.ContainsKey(i)) continue;
+
+            candidates.Add(i);
+        }
+
+        if (candidates.Count == 0)
+        {
+            Debug.Log("Holeを置けるマスがありません");
+            return;
+        }
+
+        int randomIndex = Random.Range(0, candidates.Count);
+        int holePathIndex = candidates[randomIndex];
+
+        // ロジック上の穴を登録
+        holeOwnerByPathIndex[holePathIndex] = playerIndex;
+
+        Vector2Int holeGrid = boardManager.outerPath[holePathIndex];
+        Debug.Log($"Player {playerIndex + 1} placed Hole at {holeGrid} (pathIndex={holePathIndex})");
+
+        // =========================
+        // 見た目を生成
+        // =========================
+        CreateHoleVisual(holePathIndex, playerIndex);
+    }
+    void RemoveHoleVisual(int holePathIndex)
+    {
+        if (holeVisualsByPathIndex.TryGetValue(holePathIndex, out GameObject marker))
+        {
+            if (marker != null)
+            {
+                Destroy(marker);
+            }
+
+            holeVisualsByPathIndex.Remove(holePathIndex);
+        }
+    }
+    void CreateHoleVisual(int holePathIndex, int playerIndex)
+    {
+        if (holeMarkerPrefab == null) return;
+        if (holeSprites == null || holeSprites.Length == 0) return;
+
+        Vector2Int grid = boardManager.outerPath[holePathIndex];
+
+        // Board のマス座標 → ワールド座標
+        Vector3 pos = boardManager.GridToWorld(grid.x, grid.y);
+
+        // 盤面より少し上に置く
+        pos.y = 5.05f;
+
+        GameObject marker = Instantiate(holeMarkerPrefab, pos, Quaternion.Euler(90f, 0f, 0f));
+
+        SpriteRenderer sr = marker.GetComponent<SpriteRenderer>();
+        if (sr != null)
+        {
+            // playerIndex は 0始まりなのでそのまま対応
+            if (playerIndex >= 0 && playerIndex < holeSprites.Length)
+            {
+                sr.sprite = holeSprites[playerIndex];
+            }
+        }
+
+        holeVisualsByPathIndex[holePathIndex] = marker;
+    }
+
+    void ActivatePlus1(int playerIndex)
+    {
+        Debug.Log($"Player {playerIndex + 1} : Plus1 発動");
+        // TODO: Plus1の効果を書く
+    }
+
+    void ActivateDouble(int playerIndex)
+    {
+        Debug.Log($"Player {playerIndex + 1} : Double 発動");
+        // TODO: Doubleの効果を書く
+    }
+
+    void ActivateUturn(int playerIndex)
+    {
+        Debug.Log($"Player {playerIndex + 1} : Uturn 発動");
+        // TODO: Uturnの効果を書く
     }
     void AddMP(int playerIndex, int amount)
     {
@@ -923,6 +1063,24 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
             yield return MoveToPosition(CurrentPlayer.transform, pos, 0.15f);
             yield return new WaitForSeconds(0.05f);
 
+            if (holeOwnerByPathIndex.TryGetValue(CurrentPathIndex, out int holeOwner))
+            {
+                // 自分が置いた穴なら無視
+                if (holeOwner != currentPlayerIndex)
+                {
+                    Debug.Log($"Player {currentPlayerIndex + 1} fell into Hole at pathIndex={CurrentPathIndex}");
+
+                    // 穴を消す（1回発動したら消滅）
+                    holeOwnerByPathIndex.Remove(CurrentPathIndex);
+                    RemoveHoleVisual(CurrentPathIndex);
+
+                    // TODO:
+                    // ここで穴マーカーを消したいなら消す
+
+                    // このマスで強制停止
+                    break;
+                }
+            }
             if (IsCorner(grid))
             {
                 CurrentPlayer.transform.rotation =
