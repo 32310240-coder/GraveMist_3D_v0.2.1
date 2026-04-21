@@ -140,6 +140,7 @@ public class GameManager : MonoBehaviour
     public Sprite mpOnSprite;
     public Sprite mpOffSprite;
     private int[] playerMP = new int[4];
+    private int[] playerMistPlusBuff = new int[4];
     private const int MAX_MP = 30;
 
     public enum GameState
@@ -231,6 +232,7 @@ public class GameManager : MonoBehaviour
         {
             playerEvolutionLevels[i] = 0;
             playerMP[i] = 0;
+            playerMistPlusBuff[i] = 0;
         }
     }
 
@@ -448,15 +450,35 @@ public class GameManager : MonoBehaviour
         }
     }
 
-    void GiveMist(int playerIndex)
+    void GiveMist(int playerIndex, int amount = 1)
     {
         if (playerIndex < 0 || playerIndex >= playerMists.Count) return;
-        if (playerMists[playerIndex].Count >= MAX_MIST) return;
+        if (amount <= 0) return;
 
-        MistType mist = (MistType)Random.Range(1, 5);
-        playerMists[playerIndex].Add(mist);
+        int finalAmount = amount;
 
-        Debug.Log($"Player {playerIndex + 1} got mist: {mist}");
+        // Mist+1 バフが有効なら、この獲得イベントに対して +1
+        if (playerMistPlusBuff[playerIndex] > 0)
+        {
+            finalAmount += playerMistPlusBuff[playerIndex];
+            Debug.Log($"Player {playerIndex + 1} の Mist+1 バフ発動: {amount} → {finalAmount}");
+        }
+
+        int canAdd = MAX_MIST - playerMists[playerIndex].Count;
+        finalAmount = Mathf.Min(finalAmount, canAdd);
+
+        if (finalAmount <= 0)
+        {
+            Debug.Log($"Player {playerIndex + 1} は Mist 上限のため増えませんでした");
+            return;
+        }
+
+        for (int i = 0; i < finalAmount; i++)
+        {
+            MistType mist = (MistType)Random.Range(1, 5);
+            playerMists[playerIndex].Add(mist);
+            Debug.Log($"Player {playerIndex + 1} got mist: {mist}");
+        }
 
         if (mistPanel != null && mistPanel.activeSelf && playerIndex == currentPlayerIndex)
         {
@@ -821,8 +843,8 @@ public class GameManager : MonoBehaviour
 
     void ActivatePlus1(int playerIndex)
     {
-        Debug.Log($"Player {playerIndex + 1} : Plus1 発動");
-        // TODO: Plus1の効果を書く
+        playerMistPlusBuff[playerIndex] += 1;
+        Debug.Log($"Player {playerIndex + 1} : Mist+1 発動（現在 +{playerMistPlusBuff[playerIndex]}）");
     }
 
     void ActivateDouble(int playerIndex)
@@ -1008,20 +1030,21 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
                 case GraveFaceResult.Side:
                     grave.GetComponent<Renderer>().material = yellowMat;
                     totalSteps += 5;
-                    GiveMist(currentPlayerIndex);
+                    GiveMist(currentPlayerIndex, 1);
                     break;
 
                 case GraveFaceResult.Vertical:
                     grave.GetComponent<Renderer>().material = greenMat;
                     totalSteps += 10;
-                    GiveMist(currentPlayerIndex);
-                    GiveMist(currentPlayerIndex);
+                    GiveMist(currentPlayerIndex, 2);
                     break;
             }
         }
 
         stoppedCount++;
         if (stoppedCount < graveCount) return;
+
+        LogTossResult();
 
         if (hasAnyFallen)
         {
@@ -1040,7 +1063,52 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
 
         moveCoroutine = StartCoroutine(MovePlayerCoroutine(totalSteps));
     }
+    void LogTossResult()
+    {
+        int frontCount = 0;
+        int backCount = 0;
+        int sideCount = 0;
+        int verticalCount = 0;
 
+        foreach (GameObject graveObj in spawnedGraves)
+        {
+            if (graveObj == null) continue;
+
+            GraveController gc = graveObj.GetComponent<GraveController>();
+            if (gc == null) continue;
+            if (gc.IsOutOfBoard()) continue;
+
+            switch (gc.GetResult())
+            {
+                case GraveFaceResult.Front:
+                    frontCount++;
+                    break;
+
+                case GraveFaceResult.Back:
+                    backCount++;
+                    break;
+
+                case GraveFaceResult.Side:
+                    sideCount++;
+                    break;
+
+                case GraveFaceResult.Vertical:
+                    verticalCount++;
+                    break;
+            }
+        }
+
+        int baseMistGain = sideCount + verticalCount * 2;
+        int plusBonus = (sideCount + verticalCount) * playerMistPlusBuff[currentPlayerIndex];
+
+        Debug.Log(
+            $"[Toss結果] Player {currentPlayerIndex + 1} / " +
+            $"表:{frontCount} 裏:{backCount} 横:{sideCount} 縦:{verticalCount} / " +
+            $"進むマス:{totalSteps} / " +
+            $"Mist増加:{baseMistGain}" +
+            (plusBonus > 0 ? $" (+Plus1で+{plusBonus} → 合計{baseMistGain + plusBonus})" : "")
+        );
+    }
     // =========================================================
     // 移動処理
     // =========================================================
@@ -1143,11 +1211,23 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
         ClearSpawnedGraves();
         ResetMistZoomImmediate();
 
+        ProcessEndOfTurn(currentPlayerIndex);
+
         currentPlayerIndex = (currentPlayerIndex + 1) % players.Count;
 
         EnterTurnStart();
         RefreshAllPlayerUI();
         FadeCurrentPlayerPanel(true);
+    }
+    void ProcessEndOfTurn(int playerIndex)
+    {
+        if (playerIndex < 0 || playerIndex >= playerMistPlusBuff.Length) return;
+
+        if (playerMistPlusBuff[playerIndex] > 0)
+        {
+            Debug.Log($"Player {playerIndex + 1} の Mist+1 バフが終了（+{playerMistPlusBuff[playerIndex]}）");
+            playerMistPlusBuff[playerIndex] = 0;
+        }
     }
     void ResetMistZoomImmediate()
     {
