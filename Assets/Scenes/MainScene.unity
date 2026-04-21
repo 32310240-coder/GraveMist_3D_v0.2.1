@@ -3860,6 +3860,28 @@ MonoBehaviour:
   yellowMat: {fileID: 2100000, guid: 1818809cfb5a803448072af7b1033374, type: 2}
   greenMat: {fileID: 2100000, guid: e34a567ab47c8f44f91b618fc3d8fadb, type: 2}
   orangeMat: {fileID: 2100000, guid: b5be7e26e2f93184aa444012749305e4, type: 2}
+  spawnHeight: 5
+  baseForce: 5
+  downwardForce: 1.2
+  forceJitter: 0.15
+  torquePower: 0.4
+  distanceRatios:
+  - 0.25
+  - 0.45
+  - 0.7
+  - 1
+  sideOffsets:
+  - -0.3
+  - 0.2
+  - -0.15
+  - 0.3
+  spawnSpreadMultiplier: 1.35
+  sideForceMultiplier: 0.55
+  randomSpawnSideRange: 0.08
+  randomSideForceRange: 0.1
+  forwardVarianceMin: 0.92
+  forwardVarianceMax: 1.08
+  forwardFlipTorque: 1.2
   boardManager: {fileID: 53876680}
   playerPrefab: {fileID: 8508857697934346435, guid: 3174da25620b3ac43a4e790a95ea78cf, type: 3}
   rightInfoLayoutGroup: {fileID: 359320914}
@@ -3905,6 +3927,8 @@ MonoBehaviour:
   mpOnSprite: {fileID: 21300000, guid: 10a27bdc6cecd7e42bf248cedb4ac04c, type: 3}
   mpOffSprite: {fileID: 21300000, guid: f4aa17a8ebb80a3408797ae2f775c325, type: 3}
   currentState: 0
+  holeMarkerPrefab: {fileID: 3117015758063649390, guid: 0257324883d602b4891d9af63ec7a083, type: 3}
+  holeSprites: []
 --- !u!4 &961388618
 Transform:
   m_ObjectHideFlags: 0
@@ -7740,9 +7764,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   gameManager: {fileID: 961388617}
   mainCamera: {fileID: 330585545}
-  boardLayer:
-    serializedVersion: 2
-    m_Bits: 128
+  boardTransform: {fileID: 53876679}
+  dragAreaWidth: 13
+  dragAreaHeight: 5
+  boardWidth: 13
+  boardHeight: 13
+  boardSurfaceY: 5
 --- !u!64 &1891502835
 MeshCollider:
   m_ObjectHideFlags: 0

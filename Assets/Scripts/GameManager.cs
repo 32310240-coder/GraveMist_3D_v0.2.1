@@ -407,7 +407,7 @@ public class GameManager : MonoBehaviour
             Vector2Int grid = startGrids[i];
 
             Vector3 pos = boardManager.GridToWorld(grid.x, grid.y);
-            pos.y = 0.5f;
+            pos.y = 5f;
 
             float yRot = 0f;
 
@@ -1058,7 +1058,7 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
             Vector2Int grid = boardManager.outerPath[CurrentPathIndex];
 
             Vector3 pos = boardManager.GridToWorld(grid.x, grid.y);
-            pos.y = 0.5f;
+            pos.y = 5f;
 
             yield return MoveToPosition(CurrentPlayer.transform, pos, 0.15f);
             yield return new WaitForSeconds(0.05f);

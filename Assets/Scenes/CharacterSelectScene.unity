@@ -1704,6 +1704,8 @@ MonoBehaviour:
   - {fileID: 1133955973}
   - {fileID: 1663836345}
   flow: {fileID: 2000305844}
+  displaySlot3: {fileID: 85328562}
+  upwardSelectThreshold: 100
   characterIcons:
   - {fileID: 21300000, guid: 131cda2dbd1b32440bce4889b94ca622, type: 3}
   - {fileID: 21300000, guid: 2f20ba0ff47a42042a001a6647fb94ed, type: 3}
@@ -1713,11 +1715,13 @@ MonoBehaviour:
   - {fileID: 21300000, guid: ac96a7039c4ecf441bd534b02ff6dd89, type: 3}
   - {fileID: 21300000, guid: 793ece52b2a55bf449ef4b0a96b02783, type: 3}
   horizontalThreshold: 80
-  verticalThreshold: 120
-  directionLockThreshold: 30
   moveDuration: 0.2
   centerScale: 1.2
   sideScale: 0.9
+  selectMoveY: 140
+  selectDuration: 0.2
+  selectScale: 1.35
+  selectFadeAlpha: 0.55
   slotSpacing: 260
 --- !u!1 &1000534831
 GameObject:

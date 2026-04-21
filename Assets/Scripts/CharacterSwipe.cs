@@ -9,40 +9,39 @@ public class CharacterSwipe : MonoBehaviour
     public Image[] displaySlotImages;      // 7枠分
     public GameFlowController flow;
 
+    [Header("Selection")]
+    public RectTransform displaySlot3;     // 中央スロット
+    public float upwardSelectThreshold = 100f;
+
     [Header("Character Data")]
     public Sprite[] characterIcons;
 
     [Header("Swipe Settings")]
     public float horizontalThreshold = 80f;
-    public float verticalThreshold = 120f;
-    public float directionLockThreshold = 30f;
 
     [Header("Animation")]
     public float moveDuration = 0.22f;
     public float centerScale = 1.2f;
     public float sideScale = 0.9f;
 
+    [Header("Select Animation")]
+    public float selectMoveY = 140f;
+    public float selectDuration = 0.2f;
+    public float selectScale = 1.35f;
+    public float selectFadeAlpha = 0.55f;
+
     int selectedCharacterIndex = 0;
     Vector2 swipeStart;
     bool touching = false;
     bool isAnimating = false;
+    bool isSelecting = false;
+    bool startedOnCenterSlot = false;
 
-    // 7枠の真ん中
     const int CENTER_SLOT = 3;
-
     Vector2[] basePositions;
 
     [Header("Layout")]
     public float slotSpacing = 180f;
-
-    enum SwipeDirection
-    {
-        None,
-        Horizontal,
-        Vertical
-    }
-
-    SwipeDirection lockedDirection = SwipeDirection.None;
 
     void Start()
     {
@@ -52,12 +51,12 @@ public class CharacterSwipe : MonoBehaviour
         if (!ValidateSetup()) return;
 
         basePositions = new Vector2[displaySlots.Length];
+        float fixedY = displaySlots[CENTER_SLOT].anchoredPosition.y;
 
         for (int i = 0; i < displaySlots.Length; i++)
         {
             float x = (i - CENTER_SLOT) * slotSpacing;
-            basePositions[i] = new Vector2(x, displaySlots[i].anchoredPosition.y);
-
+            basePositions[i] = new Vector2(x, fixedY);
             displaySlots[i].anchoredPosition = basePositions[i];
         }
 
@@ -85,6 +84,12 @@ public class CharacterSwipe : MonoBehaviour
             return false;
         }
 
+        if (displaySlot3 == null)
+        {
+            Debug.LogError("displaySlot3 が未設定です。");
+            return false;
+        }
+
         return true;
     }
 
@@ -104,13 +109,10 @@ public class CharacterSwipe : MonoBehaviour
 
     void HandleMouse()
     {
-        if (isAnimating) return;
+        if (isAnimating || isSelecting) return;
 
         if (Input.GetMouseButtonDown(0))
             BeginSwipe(Input.mousePosition);
-
-        if (touching && Input.GetMouseButton(0))
-            UpdateSwipe(Input.mousePosition);
 
         if (Input.GetMouseButtonUp(0) && touching)
             EndSwipe(Input.mousePosition);
@@ -118,7 +120,7 @@ public class CharacterSwipe : MonoBehaviour
 
     void HandleTouch()
     {
-        if (isAnimating) return;
+        if (isAnimating || isSelecting) return;
         if (Input.touchCount == 0) return;
 
         Touch touch = Input.GetTouch(0);
@@ -126,11 +128,6 @@ public class CharacterSwipe : MonoBehaviour
         if (touch.phase == TouchPhase.Began)
         {
             BeginSwipe(touch.position);
-        }
-        else if (touch.phase == TouchPhase.Moved || touch.phase == TouchPhase.Stationary)
-        {
-            if (touching)
-                UpdateSwipe(touch.position);
         }
         else if ((touch.phase == TouchPhase.Ended || touch.phase == TouchPhase.Canceled) && touching)
         {
@@ -142,24 +139,12 @@ public class CharacterSwipe : MonoBehaviour
     {
         swipeStart = startPos;
         touching = true;
-        lockedDirection = SwipeDirection.None;
-    }
 
-    void UpdateSwipe(Vector2 currentPos)
-    {
-        Vector2 delta = currentPos - swipeStart;
-
-        if (lockedDirection == SwipeDirection.None)
-        {
-            if (Mathf.Abs(delta.x) >= directionLockThreshold || Mathf.Abs(delta.y) >= directionLockThreshold)
-            {
-                lockedDirection = Mathf.Abs(delta.x) > Mathf.Abs(delta.y)
-                    ? SwipeDirection.Horizontal
-                    : SwipeDirection.Vertical;
-            }
-        }
-
-        // ドラッグ中はスロットを動かさない
+        startedOnCenterSlot = RectTransformUtility.RectangleContainsScreenPoint(
+            displaySlot3,
+            startPos,
+            null
+        );
     }
 
     void EndSwipe(Vector2 endPos)
@@ -167,32 +152,72 @@ public class CharacterSwipe : MonoBehaviour
         touching = false;
         Vector2 swipe = endPos - swipeStart;
 
-        if (lockedDirection == SwipeDirection.Vertical)
+        // DisplaySlot3 上で始まった上ドラッグだけ選択
+        if (startedOnCenterSlot &&
+            swipe.y > upwardSelectThreshold &&
+            Mathf.Abs(swipe.y) > Mathf.Abs(swipe.x))
         {
-            if (swipe.y > verticalThreshold)
-            {
-                if (flow != null)
-                    flow.ConfirmCharacter();
-            }
-        }
-        else if (lockedDirection == SwipeDirection.Horizontal)
-        {
-            if (swipe.x < -horizontalThreshold)
-            {
-                StartCoroutine(AnimateSwipe(+1)); // 左へ送る見た目
-            }
-            else if (swipe.x > horizontalThreshold)
-            {
-                StartCoroutine(AnimateSwipe(-1)); // 右へ送る見た目
-            }
+            StartCoroutine(PlaySelectAnimation());
+            return;
         }
 
-        lockedDirection = SwipeDirection.None;
+        // それ以外は横だけ有効（上下は無効）
+        if (swipe.x < -horizontalThreshold)
+        {
+            StartCoroutine(AnimateSwipe(+1));
+        }
+        else if (swipe.x > horizontalThreshold)
+        {
+            StartCoroutine(AnimateSwipe(-1));
+        }
+    }
+
+    IEnumerator PlaySelectAnimation()
+    {
+        if (isSelecting || isAnimating) yield break;
+        isSelecting = true;
+
+        RectTransform centerSlot = displaySlots[CENTER_SLOT];
+
+        int originalIndex = centerSlot.GetSiblingIndex();
+
+        // 最前面へ
+        centerSlot.SetAsLastSibling();
+
+        Vector2 startPos = centerSlot.anchoredPosition;
+        Vector2 endPos = startPos + new Vector2(0f, selectMoveY);
+
+        Vector3 startScale = centerSlot.localScale;
+        Vector3 endScale = Vector3.one * selectScale;
+
+        float elapsed = 0f;
+
+        while (elapsed < selectDuration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / selectDuration);
+            t = Mathf.SmoothStep(0f, 1f, t);
+
+            centerSlot.anchoredPosition = Vector2.Lerp(startPos, endPos, t);
+            centerSlot.localScale = Vector3.Lerp(startScale, endScale, t);
+
+            yield return null;
+        }
+
+        yield return new WaitForSeconds(0.05f);
+
+        if (flow != null)
+            flow.ConfirmCharacter();
+
+        // 元の順番に戻す
+        centerSlot.SetSiblingIndex(originalIndex);
+
+        isSelecting = false;
     }
 
     IEnumerator AnimateSwipe(int characterDelta)
     {
-        if (isAnimating || characterIcons.Length == 0) yield break;
+        if (isAnimating || isSelecting || characterIcons.Length == 0) yield break;
         isAnimating = true;
 
         Vector2[] startPositions = new Vector2[displaySlots.Length];
@@ -206,7 +231,6 @@ public class CharacterSwipe : MonoBehaviour
         if (characterDelta > 0)
         {
             // 左スワイプ
-            // 1→0, 2→1, 3→2, 4→3, 5→4, 6→5, 0はそのまま画面外左
             endPositions[0] = basePositions[0];
             endPositions[1] = basePositions[0];
             endPositions[2] = basePositions[1];
@@ -218,7 +242,6 @@ public class CharacterSwipe : MonoBehaviour
         else
         {
             // 右スワイプ
-            // 0→1, 1→2, 2→3, 3→4, 4→5, 5→6, 6はそのまま画面外右
             endPositions[0] = basePositions[1];
             endPositions[1] = basePositions[2];
             endPositions[2] = basePositions[3];
@@ -233,7 +256,6 @@ public class CharacterSwipe : MonoBehaviour
         selectedCharacterIndex =
             (selectedCharacterIndex + characterDelta + characterIcons.Length) % characterIcons.Length;
 
-        // アニメ終了後、位置を初期位置へ戻して画像を再割り当て
         for (int i = 0; i < displaySlots.Length; i++)
         {
             displaySlots[i].anchoredPosition = basePositions[i];
@@ -270,7 +292,9 @@ public class CharacterSwipe : MonoBehaviour
 
             for (int i = 0; i < displaySlots.Length; i++)
             {
-                displaySlots[i].anchoredPosition = Vector2.Lerp(startPositions[i], endPositions[i], t);
+                float x = Mathf.Lerp(startPositions[i].x, endPositions[i].x, t);
+                float y = basePositions[i].y;
+                displaySlots[i].anchoredPosition = new Vector2(x, y);
                 displaySlots[i].localScale = Vector3.Lerp(startScales[i], endScales[i], t);
             }
 
@@ -279,7 +303,7 @@ public class CharacterSwipe : MonoBehaviour
 
         for (int i = 0; i < displaySlots.Length; i++)
         {
-            displaySlots[i].anchoredPosition = endPositions[i];
+            displaySlots[i].anchoredPosition = new Vector2(endPositions[i].x, basePositions[i].y);
             displaySlots[i].localScale = endScales[i];
         }
     }
@@ -315,6 +339,14 @@ public class CharacterSwipe : MonoBehaviour
             int offset = i - CENTER_SLOT;
             int charIndex = (selectedCharacterIndex + offset + characterIcons.Length) % characterIcons.Length;
             displaySlotImages[i].sprite = characterIcons[charIndex];
+
+            // 念のため透明度を戻す
+            if (displaySlotImages[i] != null)
+            {
+                Color c = displaySlotImages[i].color;
+                c.a = 1f;
+                displaySlotImages[i].color = c;
+            }
         }
     }
 
