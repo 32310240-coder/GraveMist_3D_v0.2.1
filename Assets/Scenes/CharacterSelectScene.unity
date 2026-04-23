@@ -2764,7 +2764,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 500, y: 500}
+  m_SizeDelta: {x: 900, y: 900}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &1512435027
 CanvasRenderer:
@@ -3554,13 +3554,13 @@ MonoBehaviour:
   - {fileID: 604722302}
   - {fileID: 260599823}
   characterSprites:
-  - {fileID: 21300000, guid: 9cfb63c2832d6ca488795d140577ecbe, type: 3}
-  - {fileID: 21300000, guid: 803b5e656599735479c8cb70629382b8, type: 3}
-  - {fileID: 21300000, guid: d7f7cb692ed634c4aaab3948c447f750, type: 3}
-  - {fileID: 21300000, guid: f6c2bf1b6d919d24995ebf0b001fc563, type: 3}
-  - {fileID: 21300000, guid: b3ef6b7f33cdc604692692b8e1c98b22, type: 3}
-  - {fileID: 21300000, guid: fa20429dfec73714f89df166989fc1ef, type: 3}
-  - {fileID: 21300000, guid: aef6203201043194a9b3680d8d985e56, type: 3}
+  - {fileID: 21300000, guid: 1795099b1153d8f4e84a1a0d78a6e6fd, type: 3}
+  - {fileID: 21300000, guid: 90517c19a2971434ca2fb979c2699df2, type: 3}
+  - {fileID: 21300000, guid: e99b80200dbbce34eb5d62da0962dc14, type: 3}
+  - {fileID: 21300000, guid: 288db05a4a21f0e439a53c450ce86b8c, type: 3}
+  - {fileID: 21300000, guid: 5acf70db7f937f7408705f487b4635fb, type: 3}
+  - {fileID: 21300000, guid: 226ba54820a20994983ccb57c46bf61c, type: 3}
+  - {fileID: 21300000, guid: b15829a23b561a9498b8e476ef177453, type: 3}
   characterIcons:
   - {fileID: 21300000, guid: 131cda2dbd1b32440bce4889b94ca622, type: 3}
   - {fileID: 21300000, guid: 2f20ba0ff47a42042a001a6647fb94ed, type: 3}

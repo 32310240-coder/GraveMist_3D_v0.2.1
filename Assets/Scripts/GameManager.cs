@@ -141,6 +141,7 @@ public class GameManager : MonoBehaviour
     public Sprite mpOffSprite;
     private int[] playerMP = new int[4];
     private int[] playerMistPlusBuff = new int[4];
+    private bool[] playerCakeBuff = new bool[4];
     private const int MAX_MP = 30;
 
     public enum GameState
@@ -152,7 +153,7 @@ public class GameManager : MonoBehaviour
     {
         Hole = 1,
         Plus1 = 2,
-        Double = 3,
+        Cake = 3,
         Uturn = 4
     }
     public GameState currentState = GameState.Idle;
@@ -232,6 +233,7 @@ public class GameManager : MonoBehaviour
         {
             playerEvolutionLevels[i] = 0;
             playerMP[i] = 0;
+            playerCakeBuff[i] = false;
             playerMistPlusBuff[i] = 0;
         }
     }
@@ -741,8 +743,8 @@ public class GameManager : MonoBehaviour
                 ActivatePlus1(playerIndex);
                 break;
 
-            case MistType.Double:
-                ActivateDouble(playerIndex);
+            case MistType.Cake:
+                ActivateCake(playerIndex);
                 break;
 
             case MistType.Uturn:
@@ -847,10 +849,10 @@ public class GameManager : MonoBehaviour
         Debug.Log($"Player {playerIndex + 1} : Mist+1 発動（現在 +{playerMistPlusBuff[playerIndex]}）");
     }
 
-    void ActivateDouble(int playerIndex)
+    void ActivateCake(int playerIndex)
     {
-        Debug.Log($"Player {playerIndex + 1} : Double 発動");
-        // TODO: Doubleの効果を書く
+        playerCakeBuff[playerIndex] = true;
+        Debug.Log($"Player {playerIndex + 1} : Cake 発動（このターンの移動マス2倍）");
     }
 
     void ActivateUturn(int playerIndex)
@@ -1044,6 +1046,12 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
         stoppedCount++;
         if (stoppedCount < graveCount) return;
 
+        if (!hasAnyFallen && playerCakeBuff[currentPlayerIndex])
+        {
+            Debug.Log($"Player {currentPlayerIndex + 1} の Cake 発動: {totalSteps} → {totalSteps * 2}");
+            totalSteps *= 2;
+        }
+
         LogTossResult();
 
         if (hasAnyFallen)
@@ -1106,8 +1114,8 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
             $"表:{frontCount} 裏:{backCount} 横:{sideCount} 縦:{verticalCount} / " +
             $"進むマス:{totalSteps} / " +
             $"Mist増加:{baseMistGain}" +
-            (plusBonus > 0 ? $" (+Plus1で+{plusBonus} → 合計{baseMistGain + plusBonus})" : "")
-        );
+            (plusBonus > 0 ? $" (+Plus1で+{plusBonus} → 合計{baseMistGain + plusBonus})" : "") +
+            (playerCakeBuff[currentPlayerIndex] ? " / Cake有効" : ""));
     }
     // =========================================================
     // 移動処理
@@ -1227,6 +1235,12 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
         {
             Debug.Log($"Player {playerIndex + 1} の Mist+1 バフが終了（+{playerMistPlusBuff[playerIndex]}）");
             playerMistPlusBuff[playerIndex] = 0;
+        }
+
+        if (playerCakeBuff[playerIndex])
+        {
+            Debug.Log($"Player {playerIndex + 1} の Cake バフが終了");
+            playerCakeBuff[playerIndex] = false;
         }
     }
     void ResetMistZoomImmediate()
