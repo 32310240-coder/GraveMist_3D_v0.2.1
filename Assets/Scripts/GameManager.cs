@@ -108,6 +108,7 @@ public class GameManager : MonoBehaviour
     private const int START_MIST = 3;
 
     private int currentPlayerIndex = 0;
+    private bool isClockwise = false; // false=左回り, true=右回り
     private Coroutine moveCoroutine;
     private Coroutine currentPlayerPanelFadeCoroutine;
 
@@ -139,8 +140,8 @@ public class GameManager : MonoBehaviour
     public MPSlotsUI currentPlayerMPSlots;
     public Sprite mpOnSprite;
     public Sprite mpOffSprite;
-    private int[] playerMP = new int[4];
-    private int[] playerMistPlusBuff = new int[4];
+    private int[] playerMP = new int[4]; 
+    private bool[] playerMistPlusBuff = new bool[4];
     private bool[] playerCakeBuff = new bool[4];
     private const int MAX_MP = 30;
 
@@ -233,8 +234,8 @@ public class GameManager : MonoBehaviour
         {
             playerEvolutionLevels[i] = 0;
             playerMP[i] = 0;
+            playerMistPlusBuff[i] = false;
             playerCakeBuff[i] = false;
-            playerMistPlusBuff[i] = 0;
         }
     }
 
@@ -460,9 +461,9 @@ public class GameManager : MonoBehaviour
         int finalAmount = amount;
 
         // Mist+1 バフが有効なら、この獲得イベントに対して +1
-        if (playerMistPlusBuff[playerIndex] > 0)
+        if (playerMistPlusBuff[playerIndex])
         {
-            finalAmount += playerMistPlusBuff[playerIndex];
+            finalAmount += 1;
             Debug.Log($"Player {playerIndex + 1} の Mist+1 バフ発動: {amount} → {finalAmount}");
         }
 
@@ -845,8 +846,14 @@ public class GameManager : MonoBehaviour
 
     void ActivatePlus1(int playerIndex)
     {
-        playerMistPlusBuff[playerIndex] += 1;
-        Debug.Log($"Player {playerIndex + 1} : Mist+1 発動（現在 +{playerMistPlusBuff[playerIndex]}）");
+        if (playerMistPlusBuff[playerIndex])
+        {
+            Debug.Log($"Player {playerIndex + 1} : Mist+1 はすでに有効です");
+            return;
+        }
+
+        playerMistPlusBuff[playerIndex] = true;
+        Debug.Log($"Player {playerIndex + 1} : Mist+1 発動（このターン中のミスト獲得数+1）");
     }
 
     void ActivateCake(int playerIndex)
@@ -857,8 +864,33 @@ public class GameManager : MonoBehaviour
 
     void ActivateUturn(int playerIndex)
     {
-        Debug.Log($"Player {playerIndex + 1} : Uturn 発動");
-        // TODO: Uturnの効果を書く
+        isClockwise = !isClockwise;
+
+        Debug.Log($"Player {playerIndex + 1} : UTurn発動 → {(isClockwise ? "右回り" : "左回り")}");
+
+        for (int i = 0; i < players.Count; i++)
+        {
+            GameObject p = players[i];
+            if (p == null) continue;
+            if (i < 0 || i >= playerPathIndices.Count) continue;
+
+            Vector2Int grid = boardManager.outerPath[playerPathIndices[i]];
+
+            Vector3 euler = p.transform.eulerAngles;
+
+            if (IsCorner(grid))
+            {
+                float turnAngle = isClockwise ? -90f : 90f;
+                euler.y = RoundTo90(euler.y + turnAngle);
+            }
+            else
+            {
+                // 角以外にいる駒は180度回転
+                euler.y = RoundTo90(euler.y + 180f);
+            }
+
+            p.transform.rotation = Quaternion.Euler(90f, euler.y, 0f);
+        }
     }
     void AddMP(int playerIndex, int amount)
     {
@@ -1107,7 +1139,9 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
         }
 
         int baseMistGain = sideCount + verticalCount * 2;
-        int plusBonus = (sideCount + verticalCount) * playerMistPlusBuff[currentPlayerIndex];
+        int plusBonus = playerMistPlusBuff[currentPlayerIndex]
+            ? sideCount + verticalCount
+            : 0;
 
         Debug.Log(
             $"[Toss結果] Player {currentPlayerIndex + 1} / " +
@@ -1122,7 +1156,8 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
     // =========================================================
     IEnumerator MovePlayerCoroutine(int steps)
     {
-        int dir = steps >= 0 ? 1 : -1;
+        int dir = isClockwise ? -1 : 1;
+        if (steps < 0) dir *= -1;
         int count = Mathf.Abs(steps);
 
         for (int i = 0; i < count; i++)
@@ -1159,10 +1194,12 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
             }
             if (IsCorner(grid))
             {
+                float turnAngle = isClockwise ? 90f : -90f;
+
                 CurrentPlayer.transform.rotation =
                     Quaternion.Euler(
                         90f,
-                        RoundTo90(CurrentPlayer.transform.eulerAngles.y - 90f),
+                        RoundTo90(CurrentPlayer.transform.eulerAngles.y + turnAngle),
                         0f
                     );
 
@@ -1213,7 +1250,38 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
         y = Mathf.Repeat(y, 360f);
         return Mathf.Round(y / 90f) * 90f;
     }
+    void UpdatePlayerFacing(int playerIndex)
+    {
+        if (playerIndex < 0 || playerIndex >= players.Count) return;
+        if (playerIndex < 0 || playerIndex >= playerPathIndices.Count) return;
+        if (players[playerIndex] == null) return;
+        if (boardManager == null || boardManager.outerPath == null || boardManager.outerPath.Count == 0) return;
 
+        int currentIndex = playerPathIndices[playerIndex];
+
+        int dir = isClockwise ? -1 : 1;
+        int nextIndex = (currentIndex + dir + boardManager.outerPath.Count) % boardManager.outerPath.Count;
+
+        Vector2Int currentGrid = boardManager.outerPath[currentIndex];
+        Vector2Int nextGrid = boardManager.outerPath[nextIndex];
+        Vector2Int delta = nextGrid - currentGrid;
+
+        float yRot = players[playerIndex].transform.eulerAngles.y;
+
+        if (delta.x > 0) yRot = 0f;
+        else if (delta.y > 0) yRot = -90f;
+        else if (delta.x < 0) yRot = 180f;
+        else if (delta.y < 0) yRot = 90f;
+
+        players[playerIndex].transform.rotation = Quaternion.Euler(90f, yRot, 0f);
+    }
+    void UpdateAllPlayerFacing()
+    {
+        for (int i = 0; i < players.Count; i++)
+        {
+            UpdatePlayerFacing(i);
+        }
+    }
     void NextTurn()
     {
         ClearSpawnedGraves();
@@ -1231,10 +1299,10 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
     {
         if (playerIndex < 0 || playerIndex >= playerMistPlusBuff.Length) return;
 
-        if (playerMistPlusBuff[playerIndex] > 0)
+        if (playerMistPlusBuff[playerIndex])
         {
-            Debug.Log($"Player {playerIndex + 1} の Mist+1 バフが終了（+{playerMistPlusBuff[playerIndex]}）");
-            playerMistPlusBuff[playerIndex] = 0;
+            Debug.Log($"Player {playerIndex + 1} の Mist+1 バフが終了");
+            playerMistPlusBuff[playerIndex] = false;
         }
 
         if (playerCakeBuff[playerIndex])
