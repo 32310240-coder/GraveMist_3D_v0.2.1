@@ -14,15 +14,14 @@ public class GameFlowController : MonoBehaviour
     public GameObject[] playerSlots;
 
     public Image characterPreviewImage;
-    public TextMeshProUGUI characterNameText;
-    public TextMeshProUGUI selectingPlayerText;
+    public Image characterNameImage;
+    public Sprite[] characterNameSprites;
 
     public Image[] playerSlotIcons;
 
     [Header("Character Data")]
     public Sprite[] characterSprites;     // 中央の大きい立ち絵
     public Sprite[] characterIcons;       // 上部スロット用小アイコン
-    public string[] characterNames;
 
     [Header("Preview Animation")]
     public float previewAnimDuration = 0.18f;

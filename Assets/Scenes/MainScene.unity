@@ -3820,8 +3820,8 @@ MonoBehaviour:
   - {fileID: 21300000, guid: 53652d9fbf2fcdc4eab967b87bc121fd, type: 3}
   - {fileID: 21300000, guid: 72a3c838aaf2f4c408b037cfd41f5034, type: 3}
   - {fileID: 21300000, guid: a61ed48ca1d17544cb2448cacb05a3e8, type: 3}
-  - {fileID: 21300000, guid: 5acf70db7f937f7408705f487b4635fb, type: 3}
-  - {fileID: 21300000, guid: 226ba54820a20994983ccb57c46bf61c, type: 3}
+  - {fileID: 21300000, guid: a2bb3bcf15e572a41a345189a84fb052, type: 3}
+  - {fileID: 21300000, guid: b8cd77abeccc174428bd1e5726dd4834, type: 3}
   - {fileID: 21300000, guid: cb45fdc5399cd1b46be91e085b6f7db2, type: 3}
   characterLargeSprites:
   - {fileID: 21300000, guid: 1795099b1153d8f4e84a1a0d78a6e6fd, type: 3}
