@@ -210,6 +210,7 @@ public class GameFlowController : MonoBehaviour
 
     public void ConfirmCharacter()
     {
+        AudioManager.Instance.PlaySE("menu_enter");
         if (selectingPlayer >= GameSession.PlayerCount) return;
         if (currentCharacter < 0 || currentCharacter >= characterIcons.Length) return;
 
@@ -248,11 +249,13 @@ public class GameFlowController : MonoBehaviour
 
     public void StartGame()
     {
+        AudioManager.Instance.PlaySE("menu_enter");
         SceneManager.LoadScene("ModeSelectScene");
     }
 
     public void SelectClassic()
     {
+        AudioManager.Instance.PlaySE("menu_enter");
         SceneManager.LoadScene("CharacterSelectScene");
     }
 
@@ -263,17 +266,22 @@ public class GameFlowController : MonoBehaviour
 
     public void BackToTitle()
     {
+        AudioManager.Instance.PlaySE("menu_cancel");
         SceneManager.LoadScene("StartScene");
     }
 
     public void OpenSettings()
     {
+        AudioManager.Instance.PlaySE("menu_pause");
+
         if (settingsPanel != null) settingsPanel.SetActive(true);
         if (settingsButton != null) settingsButton.SetActive(false);
     }
 
     public void CloseSettings()
     {
+        AudioManager.Instance.PlaySE("menu_cancel");
+
         if (settingsPanel != null) settingsPanel.SetActive(false);
         if (settingsButton != null) settingsButton.SetActive(true);
     }

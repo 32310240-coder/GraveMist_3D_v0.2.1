@@ -265,6 +265,8 @@ public class CharacterSwipe : MonoBehaviour
         RefreshScalesImmediate();
         NotifyCenterCharacter();
 
+        AudioManager.Instance.PlaySE("menu_select");
+
         isAnimating = false;
     }
 

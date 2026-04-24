@@ -1047,7 +1047,7 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
     {
         if (stoppedGraves.Contains(grave)) return;
         stoppedGraves.Add(grave);
-
+        AudioManager.Instance.PlaySE("grave_bounce");
         // 盤外チェック
         if (grave.IsOutOfBoard())
         {
@@ -1087,7 +1087,7 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
         // 全グレイブ停止後の処理
         // =========================
 
-        // ❌ 失敗時（盤外あり）
+        // 失敗時（盤外あり）
         if (hasAnyFallen)
         {
             AudioManager.Instance.PlaySE("grave_miss");
@@ -1102,17 +1102,17 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
             return;
         }
 
-        // 🍰 Cakeバフ
+        //  Cakeバフ
         if (playerCakeBuff[currentPlayerIndex])
         {
             Debug.Log($"Player {currentPlayerIndex + 1} の Cake 発動: {totalSteps} → {totalSteps * 2}");
             totalSteps *= 2;
         }
 
-        // 🎲 出目確定SE
+        // 出目確定SE
         PlayFaceDecidedSE();
 
-        // 📊 ログ
+        // ログ
         LogTossResult();
 
         // ▶ 移動開始
