@@ -201,6 +201,8 @@ public class GameManager : MonoBehaviour
         RefreshAllPlayerUI();
         ShowCurrentPlayerPanelImmediate();
 
+        AudioManager.Instance.PlayBattleBGM();
+
         if (mistZoomTarget != null)
         {
             mistSlotsNormalScale = mistZoomTarget.localScale;

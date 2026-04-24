@@ -43,6 +43,12 @@ public class GameFlowController : MonoBehaviour
         {
             int w = GameSession.WinnerIndex;
             winnerText.text = (w < 0) ? "Winner: ?" : $"{w + 1}P の勝利！";
+
+            AudioManager.Instance.PlayBGM(AudioManager.Instance.bgmFanfare, false);
+        }
+        else
+        {
+            AudioManager.Instance.PlayBGM(AudioManager.Instance.bgmMainMenu, true);
         }
 
         if (settingsPanel != null)
@@ -51,8 +57,6 @@ public class GameFlowController : MonoBehaviour
         UpdatePlayerSlots();
         UpdateSelectingPlayerUI();
         ResetPlayerSlotIcons();
-
-        // 初期プレビュー表示
         UpdateCharacterPreviewImmediate();
     }
 
