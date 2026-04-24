@@ -14,14 +14,15 @@ public class GameFlowController : MonoBehaviour
     public GameObject[] playerSlots;
 
     public Image characterPreviewImage;
-    public Image characterNameImage;
-    public Sprite[] characterNameSprites;
+    public Image characterNameImage; // ← 変更（Text → Image）
+    public TextMeshProUGUI selectingPlayerText;
 
     public Image[] playerSlotIcons;
 
     [Header("Character Data")]
-    public Sprite[] characterSprites;     // 中央の大きい立ち絵
-    public Sprite[] characterIcons;       // 上部スロット用小アイコン
+    public Sprite[] characterSprites;      // 立ち絵（中央）
+    public Sprite[] characterIcons;        // 上部スロット用
+    public Sprite[] characterNameSprites;
 
     [Header("Preview Animation")]
     public float previewAnimDuration = 0.18f;
@@ -50,6 +51,9 @@ public class GameFlowController : MonoBehaviour
         UpdatePlayerSlots();
         UpdateSelectingPlayerUI();
         ResetPlayerSlotIcons();
+
+        // 初期プレビュー表示
+        UpdateCharacterPreviewImmediate();
     }
 
     void ResetPlayerSlotIcons()
@@ -74,6 +78,7 @@ public class GameFlowController : MonoBehaviour
         currentCharacter = index;
         UpdateCharacterPreviewAnimated();
     }
+
     void UpdateCharacterPreviewImmediate()
     {
         if (characterPreviewImage != null &&
@@ -85,24 +90,36 @@ public class GameFlowController : MonoBehaviour
             characterPreviewImage.rectTransform.localScale = Vector3.one;
         }
 
-        if (characterNameText != null &&
-            characterNames != null &&
+        // 名前画像更新
+        if (characterNameImage != null &&
+            characterNameSprites != null &&
             currentCharacter >= 0 &&
-            currentCharacter < characterNames.Length)
+            currentCharacter < characterNameSprites.Length)
         {
-            characterNameText.text = characterNames[currentCharacter];
+            characterNameImage.sprite = characterNameSprites[currentCharacter];
         }
 
         initializedPreview = true;
+        UpdateCharacterNameImage();
+    }
+    void UpdateCharacterNameImage()
+    {
+        if (characterNameImage == null) return;
+        if (characterNameSprites == null) return;
+        if (currentCharacter < 0 || currentCharacter >= characterNameSprites.Length) return;
+
+        characterNameImage.sprite = characterNameSprites[currentCharacter];
+        characterNameImage.enabled = true;
     }
     void UpdateCharacterPreviewAnimated()
     {
-        if (characterNameText != null &&
-            characterNames != null &&
+        // 名前画像更新
+        if (characterNameImage != null &&
+            characterNameSprites != null &&
             currentCharacter >= 0 &&
-            currentCharacter < characterNames.Length)
+            currentCharacter < characterNameSprites.Length)
         {
-            characterNameText.text = characterNames[currentCharacter];
+            characterNameImage.sprite = characterNameSprites[currentCharacter];
         }
 
         if (characterPreviewImage == null ||
@@ -122,8 +139,12 @@ public class GameFlowController : MonoBehaviour
         if (previewAnimCoroutine != null)
             StopCoroutine(previewAnimCoroutine);
 
-        previewAnimCoroutine = StartCoroutine(PlayPreviewChangeAnimation(characterSprites[currentCharacter]));
+        previewAnimCoroutine = StartCoroutine(
+            PlayPreviewChangeAnimation(characterSprites[currentCharacter])
+        );
+        UpdateCharacterNameImage();
     }
+
     IEnumerator PlayPreviewChangeAnimation(Sprite nextSprite)
     {
         RectTransform rt = characterPreviewImage.rectTransform;
@@ -136,7 +157,7 @@ public class GameFlowController : MonoBehaviour
         float halfDuration = previewAnimDuration * 0.5f;
         float elapsed = 0f;
 
-        // 1) 今の画像をズームアウト
+        // 1) 縮小
         while (elapsed < halfDuration)
         {
             elapsed += Time.deltaTime;
@@ -149,10 +170,10 @@ public class GameFlowController : MonoBehaviour
 
         rt.localScale = shrinkScale;
 
-        // 2) 画像切り替え
+        // 2) 切り替え
         characterPreviewImage.sprite = nextSprite;
 
-        // 3) 少し大きめで表示してから通常サイズへ
+        // 3) 拡大→戻す
         elapsed = 0f;
         rt.localScale = overshootScale;
 
@@ -169,7 +190,6 @@ public class GameFlowController : MonoBehaviour
         rt.localScale = normalScale;
         previewAnimCoroutine = null;
     }
- 
 
     void UpdateSelectingPlayerUI()
     {
