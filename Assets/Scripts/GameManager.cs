@@ -8,7 +8,7 @@ using TMPro;
 [System.Serializable]
 public class EvolutionGaugeUI
 {
-    public Image[] gauges; // Gauge_1 ～ Gauge_3
+    public Image gaugeImage; 
 }
 
 [System.Serializable]
@@ -49,9 +49,17 @@ public class GameManager : MonoBehaviour
     public Sprite[] characterLargeSprites;      // CurrentPlayerPanel用
     public string[] characterNames;             // キャラ名（今は未使用でもOK）
 
-    [Header("Evolution Gauge Sprites")]
-    public Sprite evolutionOnSprite;
-    public Sprite evolutionOffSprite;
+    
+    [System.Serializable]
+    public class PlayerEvolutionSprites
+    {
+        public Sprite level1;
+        public Sprite level2;
+        public Sprite level3;
+    }
+    [Header("Evolution Gauge Image Sprites")]
+    public Sprite evolutionInitialSprite; // sinka.png
+    public PlayerEvolutionSprites[] playerEvolutionSprites; // 1P〜4P
 
     [Header("UI")]
     public GameObject dragArea;
@@ -290,7 +298,7 @@ public class GameManager : MonoBehaviour
             if (topPlayerEvolutionGauges != null &&
                 i < topPlayerEvolutionGauges.Length)
             {
-                RefreshEvolutionGauge(topPlayerEvolutionGauges[i], playerEvolutionLevels[i]);
+                RefreshEvolutionGauge(topPlayerEvolutionGauges[i], i, playerEvolutionLevels[i]);
             }
         }
     }
@@ -311,7 +319,7 @@ public class GameManager : MonoBehaviour
         }
 
         // 進化ゲージ
-        RefreshEvolutionGauge(currentPlayerEvolutionGauge, playerEvolutionLevels[playerIndex]);
+        RefreshEvolutionGauge(currentPlayerEvolutionGauge, playerIndex, playerEvolutionLevels[playerIndex]);
 
         // 手持ちMist
         if (playerIndex >= 0 && playerIndex < playerMists.Count)
@@ -321,29 +329,39 @@ public class GameManager : MonoBehaviour
         RefreshMPSlots(currentPlayerMPSlots, playerMP[playerIndex]);
     }
 
-    void RefreshEvolutionGauge(EvolutionGaugeUI gaugeUI, int level)
+    void RefreshEvolutionGauge(EvolutionGaugeUI gaugeUI, int playerIndex, int level)
+{
+    if (gaugeUI == null || gaugeUI.gaugeImage == null) return;
+
+    level = Mathf.Clamp(level, 0, 3);
+
+    if (level == 0)
     {
-        if (gaugeUI == null || gaugeUI.gauges == null) return;
+        gaugeUI.gaugeImage.sprite = evolutionInitialSprite;
+    }
+    else if (playerEvolutionSprites != null &&
+             playerIndex >= 0 &&
+             playerIndex < playerEvolutionSprites.Length)
+    {
+        PlayerEvolutionSprites sprites = playerEvolutionSprites[playerIndex];
 
-        for (int i = 0; i < gaugeUI.gauges.Length; i++)
+        switch (level)
         {
-            if (gaugeUI.gauges[i] == null) continue;
-
-            bool isOn = i < level;
-
-            if (isOn)
-            {
-                gaugeUI.gauges[i].sprite = evolutionOnSprite;
-            }
-            else
-            {
-                gaugeUI.gauges[i].sprite = evolutionOffSprite;
-            }
-
-            gaugeUI.gauges[i].enabled = true;
-            gaugeUI.gauges[i].color = Color.white;
+            case 1:
+                gaugeUI.gaugeImage.sprite = sprites.level1;
+                break;
+            case 2:
+                gaugeUI.gaugeImage.sprite = sprites.level2;
+                break;
+            case 3:
+                gaugeUI.gaugeImage.sprite = sprites.level3;
+                break;
         }
     }
+
+    gaugeUI.gaugeImage.enabled = true;
+    gaugeUI.gaugeImage.color = Color.white;
+}
 
     void RefreshMistSlots(MistSlotsUI mistUI, List<MistType> mists)
     {
@@ -960,13 +978,27 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
 
     void SpawnAndLaunchGraves(Vector3 launchPos, Vector3 dir, float dragDistance)
     {
-        AudioManager.Instance.PlaySE("grave_toss");
+        if (AudioManager.Instance != null)
+        {
+            AudioManager.Instance.PlaySE("grave_toss");
+        }
+        else
+        {
+            Debug.LogWarning("AudioManager.Instance が null です");
+        }
+
         ClearSpawnedGraves();
 
         stoppedCount = 0;
         totalSteps = 0;
         stoppedGraves.Clear();
         hasAnyFallen = false;
+
+        if (gravePrefab == null)
+        {
+            Debug.LogError("gravePrefab が GameManager に設定されていません！");
+            return;
+        }
 
         Vector3 forward = dir;
         forward.y = 0f;
@@ -995,6 +1027,19 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
             GameObject grave = Instantiate(gravePrefab, spawnPos, Quaternion.identity);
 
             Rigidbody rb = grave.GetComponent<Rigidbody>();
+            if (rb == null)
+            {
+                Debug.LogError("生成された grave に Rigidbody がありません！");
+                return;
+            }
+
+            GraveController gc = grave.GetComponent<GraveController>();
+            if (gc == null)
+            {
+                Debug.LogError("生成された grave に GraveController がありません！");
+                return;
+            }
+
             rb.linearVelocity = Vector3.zero;
             rb.angularVelocity = Vector3.zero;
 
@@ -1003,7 +1048,6 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
             rb.linearDamping = 1.0f;
             rb.angularDamping = 3.5f;
 
-            // 進行方向を向きつつ、少し前傾＆ランダム姿勢
             rb.rotation =
                 Quaternion.LookRotation(forward, Vector3.up) *
                 Quaternion.Euler(
@@ -1012,7 +1056,6 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
                     Random.Range(-8f, 8f)
                 );
 
-            GraveController gc = grave.GetComponent<GraveController>();
             gc.OnStopped -= OnGraveStopped;
             gc.OnStopped += OnGraveStopped;
 
@@ -1027,7 +1070,6 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
 
             rb.AddForce(finalForce, ForceMode.Impulse);
 
-            // 前後回転を少し入れる
             Vector3 torque =
                 side * forwardFlipTorque +
                 new Vector3(
