@@ -1047,7 +1047,7 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
     {
         if (stoppedGraves.Contains(grave)) return;
         stoppedGraves.Add(grave);
-        AudioManager.Instance.PlaySE("grave_bounce");
+
         // 盤外チェック
         if (grave.IsOutOfBoard())
         {
@@ -1206,6 +1206,7 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
             pos.y = 5f;
 
             yield return MoveToPosition(CurrentPlayer.transform, pos, 0.15f);
+            CheckPlayerTread();
 
             AudioManager.Instance.PlaySE("player_step");
 
@@ -1274,6 +1275,19 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
         }
 
         NextTurn();
+    }
+    void CheckPlayerTread()
+    {
+        for (int i = 0; i < players.Count; i++)
+        {
+            if (i == currentPlayerIndex) continue;
+
+            if (playerPathIndices[i] == CurrentPathIndex)
+            {
+                AudioManager.Instance.PlaySE("player_tread");
+                break;
+            }
+        }
     }
     float GetArrayValueOrDefault(float[] array, int index, float defaultValue)
     {

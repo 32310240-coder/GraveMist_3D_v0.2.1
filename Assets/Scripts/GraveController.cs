@@ -22,12 +22,26 @@ public class GraveController : MonoBehaviour
     float stillTimer = 0f;
     bool hasStopped = false;
     bool isInvalid = false; // ★ 追加（落下したか）
+    bool hasBouncedOnBoard = false;
 
     public event Action<GraveController> OnStopped;
 
     public bool hasGraveSupporting = false;
     [SerializeField] Transform judgePivot;
+    void OnCollisionEnter(Collision collision)
+    {
+        if (hasBouncedOnBoard) return;
 
+        if (collision.gameObject.CompareTag("Board"))
+        {
+            hasBouncedOnBoard = true;
+
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.PlaySE("grave_bounce");
+            }
+        }
+    }
     void OnCollisionStay(Collision collision)
     {
         // Board は無視
