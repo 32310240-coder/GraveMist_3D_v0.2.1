@@ -81,6 +81,11 @@ public class AudioManager : MonoBehaviour
 
         Debug.LogWarning($"SE not found: {key}");
     }
+    public void PlaySEClip(AudioClip clip)
+    {
+        if (seSource == null || clip == null) return;
+        seSource.PlayOneShot(clip);
+    }
     void Update()
 {
     if (Input.GetKeyDown(KeyCode.Space))

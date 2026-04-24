@@ -28,7 +28,8 @@ public class GameFlowController : MonoBehaviour
     public float previewAnimDuration = 0.18f;
     public float previewMinScale = 0.85f;
     public float previewMaxScale = 1.08f;
-
+    [Header("Character Voice")]
+    public AudioClip[] characterSelectVoices;
     public int currentCharacter = 0;
 
     int selectingPlayer = 0;
@@ -215,6 +216,7 @@ public class GameFlowController : MonoBehaviour
     public void ConfirmCharacter()
     {
         AudioManager.Instance.PlaySE("menu_enter");
+
         if (selectingPlayer >= GameSession.PlayerCount) return;
         if (currentCharacter < 0 || currentCharacter >= characterIcons.Length) return;
 
@@ -228,6 +230,13 @@ public class GameFlowController : MonoBehaviour
             playerSlotIcons[selectingPlayer].enabled = true;
         }
 
+        if (characterSelectVoices != null &&
+            currentCharacter >= 0 &&
+            currentCharacter < characterSelectVoices.Length)
+        {
+            AudioManager.Instance.PlaySEClip(characterSelectVoices[currentCharacter]);
+        }
+
         selectingPlayer++;
 
         if (selectingPlayer >= GameSession.PlayerCount)
@@ -239,7 +248,6 @@ public class GameFlowController : MonoBehaviour
             UpdateSelectingPlayerUI();
         }
     }
-
     void StartBattle()
     {
         for (int i = 0; i < GameSession.PlayerCount; i++)
