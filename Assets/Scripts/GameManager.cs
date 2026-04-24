@@ -475,7 +475,7 @@ public class GameManager : MonoBehaviour
             Debug.Log($"Player {playerIndex + 1} は Mist 上限のため増えませんでした");
             return;
         }
-
+        AudioManager.Instance.PlaySE("mist_get");
         for (int i = 0; i < finalAmount; i++)
         {
             MistType mist = (MistType)Random.Range(1, 5);
@@ -731,6 +731,9 @@ public class GameManager : MonoBehaviour
 
         Debug.Log($"Player {playerIndex + 1} used Mist: {usedMist}");
 
+        AudioManager.Instance.PlaySE("mist_break");
+        AudioManager.Instance.PlaySE("mist_power");
+
         // =========================
         // Mistの種類ごとに効果発動
         // =========================
@@ -955,6 +958,7 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
 
     void SpawnAndLaunchGraves(Vector3 launchPos, Vector3 dir, float dragDistance)
     {
+        AudioManager.Instance.PlaySE("grave_toss");
         ClearSpawnedGraves();
 
         stoppedCount = 0;
@@ -1044,6 +1048,7 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
         if (stoppedGraves.Contains(grave)) return;
         stoppedGraves.Add(grave);
 
+        // 盤外チェック
         if (grave.IsOutOfBoard())
         {
             hasAnyFallen = true;
@@ -1078,16 +1083,15 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
         stoppedCount++;
         if (stoppedCount < graveCount) return;
 
-        if (!hasAnyFallen && playerCakeBuff[currentPlayerIndex])
-        {
-            Debug.Log($"Player {currentPlayerIndex + 1} の Cake 発動: {totalSteps} → {totalSteps * 2}");
-            totalSteps *= 2;
-        }
+        // =========================
+        // 全グレイブ停止後の処理
+        // =========================
 
-        LogTossResult();
-
+        // ❌ 失敗時（盤外あり）
         if (hasAnyFallen)
         {
+            AudioManager.Instance.PlaySE("grave_miss");
+
             foreach (GameObject g in spawnedGraves)
             {
                 if (g != null)
@@ -1098,6 +1102,20 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
             return;
         }
 
+        // 🍰 Cakeバフ
+        if (playerCakeBuff[currentPlayerIndex])
+        {
+            Debug.Log($"Player {currentPlayerIndex + 1} の Cake 発動: {totalSteps} → {totalSteps * 2}");
+            totalSteps *= 2;
+        }
+
+        // 🎲 出目確定SE
+        PlayFaceDecidedSE();
+
+        // 📊 ログ
+        LogTossResult();
+
+        // ▶ 移動開始
         if (moveCoroutine != null)
             StopCoroutine(moveCoroutine);
 
@@ -1151,6 +1169,22 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
             (plusBonus > 0 ? $" (+Plus1で+{plusBonus} → 合計{baseMistGain + plusBonus})" : "") +
             (playerCakeBuff[currentPlayerIndex] ? " / Cake有効" : ""));
     }
+
+    void PlayFaceDecidedSE()
+    {
+        if (totalSteps >= 11)
+        {
+            AudioManager.Instance.PlaySE("grave_faceDecided3");
+        }
+        else if (totalSteps >= 5)
+        {
+            AudioManager.Instance.PlaySE("grave_faceDecided2");
+        }
+        else
+        {
+            AudioManager.Instance.PlaySE("grave_faceDecided1");
+        }
+    }
     // =========================================================
     // 移動処理
     // =========================================================
@@ -1172,6 +1206,9 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
             pos.y = 5f;
 
             yield return MoveToPosition(CurrentPlayer.transform, pos, 0.15f);
+
+            AudioManager.Instance.PlaySE("player_step");
+
             yield return new WaitForSeconds(0.05f);
 
             if (holeOwnerByPathIndex.TryGetValue(CurrentPathIndex, out int holeOwner))
@@ -1294,6 +1331,8 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
         EnterTurnStart();
         RefreshAllPlayerUI();
         FadeCurrentPlayerPanel(true);
+
+        AudioManager.Instance.PlaySE("game_turnSwitch");
     }
     void ProcessEndOfTurn(int playerIndex)
     {
@@ -1383,6 +1422,9 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
 
         playerEvolutionLevels[playerIndex] += amount;
         playerEvolutionLevels[playerIndex] = Mathf.Clamp(playerEvolutionLevels[playerIndex], 0, 3);
+
+        AudioManager.Instance.PlaySE("player_evolution");
+
         RefreshAllPlayerUI();
     }
 
