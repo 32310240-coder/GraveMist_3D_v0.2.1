@@ -30,7 +30,13 @@ public class GameManager : MonoBehaviour
     public Image currentPlayerImage;
     public EvolutionGaugeUI currentPlayerEvolutionGauge;
     public MistSlotsUI currentPlayerMistSlots;   // ← 追加
+    public Image currentPlayerBGImage;
+    public Image currentPlayerNumberImage;
 
+    [Header("Current Player BG Sprites")]
+    public Sprite[] currentPlayerBGSprites; // 1P〜4P
+    [Header("Current Player Number Sprites")]
+    public Sprite[] currentPlayerNumberSprites; // 1P〜4P
     [Header("Current Player Panel Animation")]
     public float currentPlayerFadeDuration = 0.25f;
 
@@ -310,7 +316,6 @@ public class GameManager : MonoBehaviour
         int playerIndex = currentPlayerIndex;
         int charIndex = GameSession.PlayerCharacters[playerIndex];
 
-        // 今ターンのキャラ立ち絵
         if (currentPlayerImage != null &&
             charIndex >= 0 &&
             charIndex < characterLargeSprites.Length)
@@ -318,14 +323,32 @@ public class GameManager : MonoBehaviour
             currentPlayerImage.sprite = characterLargeSprites[charIndex];
         }
 
-        // 進化ゲージ
+        // 背景画像
+        if (currentPlayerBGImage != null &&
+            currentPlayerBGSprites != null &&
+            playerIndex >= 0 &&
+            playerIndex < currentPlayerBGSprites.Length)
+        {
+            currentPlayerBGImage.sprite = currentPlayerBGSprites[playerIndex];
+        }
+
+
+        // 1P / 2P / 3P / 4P（Current専用）
+        if (currentPlayerNumberImage != null &&
+            currentPlayerNumberSprites != null &&
+            playerIndex >= 0 &&
+            playerIndex < currentPlayerNumberSprites.Length)
+        {
+            currentPlayerNumberImage.sprite = currentPlayerNumberSprites[playerIndex];
+        }
+
         RefreshEvolutionGauge(currentPlayerEvolutionGauge, playerIndex, playerEvolutionLevels[playerIndex]);
 
-        // 手持ちMist
         if (playerIndex >= 0 && playerIndex < playerMists.Count)
         {
             RefreshMistSlots(currentPlayerMistSlots, playerMists[playerIndex]);
         }
+
         RefreshMPSlots(currentPlayerMPSlots, playerMP[playerIndex]);
     }
 
