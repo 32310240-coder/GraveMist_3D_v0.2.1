@@ -3665,7 +3665,7 @@ MonoBehaviour:
   mistIconPrefab: {fileID: 8166539139732379710, guid: 04830623e4fb438419870f12a6835bde, type: 3}
   mistSprites:
   - {fileID: 21300000, guid: 7780b1585ca1e1c4c8f3c9bd8a7e943b, type: 3}
-  - {fileID: 21300000, guid: a1a989e172b65634e8b7123c334dc7b7, type: 3}
+  - {fileID: 21300000, guid: 0e803d61fcb86db4f9bcb69148db6258, type: 3}
   - {fileID: 21300000, guid: 127c5905a032e5b4f822f49443e9e82b, type: 3}
   - {fileID: 21300000, guid: 9cf0f007b4aa25c42b4f2c0fe648b8b4, type: 3}
   - {fileID: 21300000, guid: d9eb5804464993849a04b1489da41b41, type: 3}
