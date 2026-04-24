@@ -34,7 +34,7 @@ Material:
     - _StarSizeMax: 0.02
     - _StarSizeMin: 0.01
     - _StarSpeed: 0.1
-    - _TimeValue: 64.96603
+    - _TimeValue: 48.32712
     m_Colors:
     - _BaseColor: {r: 0, g: 0, b: 0.09999997, a: 1}
     - _Color0: {r: 1, g: 1, b: 1, a: 1}

@@ -159,6 +159,12 @@ public class GameManager : MonoBehaviour
     private bool[] playerCakeBuff = new bool[4];
     private const int MAX_MP = 30;
 
+    [Header("Used Mist UI")]
+    public Image usedMistImage;              // Used_mist
+    public Sprite[] usedMistEffectSprites;   // 0=Hole, 1=Plus1, 2=Cake, 3=Uturn
+
+    public Transform currentPlayerMistHolder; // CurrentPlayer_mist
+    public GameObject usedMistIconPrefab;     // ImageだけのPrefab
     public enum GameState
     {
         Idle,
@@ -774,6 +780,9 @@ public class GameManager : MonoBehaviour
 
         Debug.Log($"Player {playerIndex + 1} used Mist: {usedMist}");
 
+        ShowUsedMistUI(usedMist);
+        AddCurrentPlayerUsedMistIcon(usedMist);
+
         AudioManager.Instance.PlaySE("mist_break");
         AudioManager.Instance.PlaySE("mist_power");
 
@@ -811,6 +820,48 @@ public class GameManager : MonoBehaviour
 
         // MP加算
         AddMP(playerIndex, 1);
+    }
+    void ShowUsedMistUI(MistType mist)
+    {
+        if (usedMistImage == null) return;
+
+        int spriteIndex = (int)mist - 1;
+
+        if (usedMistEffectSprites != null &&
+            spriteIndex >= 0 &&
+            spriteIndex < usedMistEffectSprites.Length &&
+            usedMistEffectSprites[spriteIndex] != null)
+        {
+            usedMistImage.sprite = usedMistEffectSprites[spriteIndex];
+            usedMistImage.enabled = true;
+            usedMistImage.color = Color.white;
+            usedMistImage.gameObject.SetActive(true);
+        }
+    }
+
+    void AddCurrentPlayerUsedMistIcon(MistType mist)
+    {
+        if (currentPlayerMistHolder == null || usedMistIconPrefab == null) return;
+
+        int spriteIndex = (int)mist - 1;
+
+        if (usedMistEffectSprites == null ||
+            spriteIndex < 0 ||
+            spriteIndex >= usedMistEffectSprites.Length ||
+            usedMistEffectSprites[spriteIndex] == null)
+        {
+            return;
+        }
+
+        GameObject icon = Instantiate(usedMistIconPrefab, currentPlayerMistHolder);
+        Image img = icon.GetComponent<Image>();
+
+        if (img != null)
+        {
+            img.sprite = usedMistEffectSprites[spriteIndex];
+            img.enabled = true;
+            img.color = Color.white;
+        }
     }
     void ActivateHole(int playerIndex)
     {
@@ -1402,6 +1453,13 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
     }
     void NextTurn()
     {
+        ClearCurrentPlayerUsedMistIcons();
+
+        if (usedMistImage != null)
+        {
+            usedMistImage.gameObject.SetActive(false);
+        }
+
         ClearSpawnedGraves();
         ResetMistZoomImmediate();
 
@@ -1414,6 +1472,15 @@ Vector3 ConvertToBoradPosition(Vector3 dragWorldPos)
         FadeCurrentPlayerPanel(true);
 
         AudioManager.Instance.PlaySE("game_turnSwitch");
+    }
+    void ClearCurrentPlayerUsedMistIcons()
+    {
+        if (currentPlayerMistHolder == null) return;
+
+        foreach (Transform child in currentPlayerMistHolder)
+        {
+            Destroy(child.gameObject);
+        }
     }
     void ProcessEndOfTurn(int playerIndex)
     {
