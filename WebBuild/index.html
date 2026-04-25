@@ -6,6 +6,32 @@
     <title>Unity Web Player | GraveMist_3D</title>
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
+    <style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: black;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  #unity-container {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  #unity-canvas {
+    width: auto !important;
+    height: 100vh !important;
+    aspect-ratio: 9 / 16;
+    max-width: 100vw;
+    max-height: 100vh;
+  }
+</style>
   </head>
   <body>
     <div id="unity-container" class="unity-desktop">
@@ -98,8 +124,8 @@
 
       } else {
         // Desktop style: Render the game canvas in a window that can be maximized to fullscreen:
-        canvas.style.width = "960px";
-        canvas.style.height = "600px";
+        //canvas.style.width = "960px";
+        //canvas.style.height = "600px";
       }
 
       document.querySelector("#unity-loading-bar").style.display = "block";
